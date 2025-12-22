@@ -583,26 +583,12 @@
                 document.getElementById("safeFiles").textContent = safe;
                 document.getElementById("warningFiles").textContent = warning;
                 document.getElementById("criticalFiles").textContent = critical;
-                        // ===== SPYWARE BEHAVIOR PROFILE (FIRST HIGH-RISK FILE) =====
+                renderDynamicResults(results);
+
+                        // SPYWARE BEHAVIOR PROFILE (FIRST HIGH-RISK FILE)
                 const criticalFile = results.find(r =>
                     r.threatLevel === "high" || r.threatLevel === "critical"
                 );
-
-                if (criticalFile && criticalFile.spywareProfile) {
-
-                    document.getElementById("spy-surveillance").textContent =
-                        criticalFile.spywareProfile.surveillance ? "Detected" : "Not Detected";
-
-                    document.getElementById("spy-exfil").textContent =
-                        criticalFile.spywareProfile.dataExfiltration ? "Detected" : "Not Detected";
-                    document.getElementById("spy-persistence").textContent =
-                        criticalFile.spywareProfile.persistence ? "Detected" : "Not Detected";
-
-                    document.getElementById("spy-stealth").textContent =
-                        criticalFile.spywareProfile.stealth ? "Detected" : "Not Detected";
-                    document.getElementById("spy-credentials").textContent =
-                    criticalFile.spywareProfile.credentialHarvesting ? "Detected" : "Not Detected";
-        }
 
             }
 
@@ -632,5 +618,6 @@
             });
         });
     </script>
+    <script src="main.js"></script>
 </body>
 </html>

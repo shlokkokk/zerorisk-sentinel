@@ -298,11 +298,13 @@ class CyberGuardSpywareAnalyzer {
                 (analysis.spywareProfile.stealth ? 10 : 0)
             );
             
-            const finalScore = Math.max(
-                analysis.threatScore,
-                analysis.spywareProfile.confidenceScore
+            const finalScore = Math.min(
+                100,
+                Math.max(
+                    analysis.threatScore,
+                    analysis.spywareProfile.confidenceScore
+                )
             );
-
             if (finalScore >= 80) analysis.threatLevel = 'critical';
             else if (finalScore >= 50) analysis.threatLevel = 'high';
             else if (finalScore >= 25) analysis.threatLevel = 'medium';
@@ -835,7 +837,7 @@ function renderDynamicResults(results) {
                 <!-- AI EXPLANATION -->
                 <div class="analysis-card p-4">
                     <h4 class="text-blue-400 font-semibold mb-2">
-                        AI Threat Explanation
+                        AI-Assisted Threat Explanation
                     </h4>
                     <p id="${aiId}" class="text-gray-300 text-sm">
                         AI is analyzing this file…
@@ -873,7 +875,18 @@ ${file.findings.map(f => "- " + f.description).join("\n")}
 
 Explain why this file is dangerous in simple terms.
 `;
+/*
+This block enables real LLM-based explanations
+via a secure backend API.
+To enable real AI explanations:
+1- Create a backend endpoint (e.g. /api/ai-explain)
+2- Store API keys securely as environment variables
+3- Send summarized analysis data to the backend
+4- Return only plain-text explanations to the UI
 
+For this version, an offline heuristic explanation
+engine is used to ensure consistent behavior
+across all systems and during evaluations.
     try {
         const response = await fetch("/api/ai-explain", {
             method: "POST",
@@ -888,6 +901,54 @@ Explain why this file is dangerous in simple terms.
         element.textContent =
             "AI explanation unavailable. Showing heuristic-based analysis.";
     }
+*/
+// 🧠 Heuristic AI Explanation Engine (Offline)
+let explanation = [];
+
+if (file.threatLevel === "critical" || file.threatLevel === "high") {
+    explanation.push(
+        "This file demonstrates multiple coordinated behaviors commonly seen in spyware. It attempts to collect sensitive information, remain active on the system, and operate without user awareness, indicating a high-severity security threat."
+    );
+}
+
+if (file.spywareProfile.surveillance) {
+    explanation.push(
+        "Indicators suggest that this file may secretly monitor user activity, such as application usage or on-screen behavior, without user knowledge or consent."
+    );
+}
+
+if (file.spywareProfile.credentialHarvesting) {
+    explanation.push(
+        "The file shows behavior consistent with collecting usernames, passwords, or other sensitive input, posing a direct risk to personal and account security."
+    );
+}
+
+if (file.spywareProfile.persistence) {
+    explanation.push(
+        "This file attempts to maintain long-term presence by restarting automatically or embedding itself into system startup processes, making removal more difficult."
+    );
+}
+
+if (file.spywareProfile.dataExfiltration) {
+    explanation.push(
+        "Network-related activity suggests that collected data may be transmitted to external servers, which is a common method used to steal information silently."
+    );
+}
+
+if (file.keyloggerDetected) {
+    explanation.push(
+        "Keystroke monitoring behavior was detected, allowing the file to record typed information such as passwords, messages, or financial data."
+    );
+}
+
+if (explanation.length === 0) {
+    explanation.push(
+        "Based on the current analysis, this file behaves as expected and does not exhibit signs of malicious or intrusive activity."
+    );
+}
+
+element.textContent = explanation.join(" ");
+
 }
 
 
