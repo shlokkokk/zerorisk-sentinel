@@ -202,6 +202,12 @@
                 padding: 16px;
             }
         }
+        .statistic-text {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
     </style>
 </head>
 <body>
@@ -242,26 +248,27 @@
                     Advanced <span class="text-blue-400">Cybersecurity</span> Methodology
                 </h1>
                 <p class="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
-                    Understanding the cutting-edge techniques behind our file analysis engine and how we protect against modern cyber threats
+                    A transparent and explainable spyware detection methodology based on static analysis,
+                    behavioral indicators, heuristic threat scoring, and AI-assisted explanations.
                 </p>
                 
                 <!-- Key Statistics -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12">
                     <div class="statistic-card">
                         <div class="statistic-number">127</div>
-                        <div class="text-gray-400">File Formats</div>
+                        <div class="text-gray-400">Known File Signatures</div>
                     </div>
                     <div class="statistic-card">
-                        <div class="statistic-number">15K+</div>
-                        <div class="text-gray-400">Threat Signatures</div>
+                        <div class="statistic-text">Rule-Based</div>
+                        <div class="text-gray-400">Detection Engine</div>
                     </div>
                     <div class="statistic-card">
-                        <div class="statistic-number">99.7%</div>
-                        <div class="text-gray-400">Detection Rate</div>
+                        <div class="statistic-text">Explainable</div>
+                        <div class="text-gray-400">Threat Decisions</div>
                     </div>
                     <div class="statistic-card">
-                        <div class="statistic-number">24/7</div>
-                        <div class="text-gray-400">Protection</div>
+                        <div class="statistic-text">Client-Side</div>
+                        <div class="text-gray-400">Offline Analysis</div>
                     </div>
                 </div>
             </div>
@@ -319,7 +326,9 @@
                             <div class="flex-1">
                                 <h3 class="text-2xl font-bold mb-4 text-white">Malware Signature Detection</h3>
                                 <p class="text-gray-300 mb-6">
-                                    Our database contains over 15,000 known malware signatures, patterns, and behavioral indicators. 
+                                    Our system uses a curated set of known malicious and suspicious patterns
+                                    designed to demonstrate how common spyware and malware behaviors can be identified.
+
                                     We scan file content for suspicious code patterns, malicious functions, and known attack vectors.
                                 </p>
                                 
@@ -332,7 +341,6 @@
                                             <li>Registry modification attempts</li>
                                             <li>Network communication signatures</li>
                                             <li>File system manipulation</li>
-                                            <li>Process injection techniques</li>
                                         </ul>
                                     </div>
                                     
@@ -374,7 +382,10 @@
                                 <h3 class="text-2xl font-bold mb-4 text-white">Keylogger & Spyware Detection</h3>
                                 <p class="text-gray-300 mb-6">
                                     Specialized algorithms detect keystroke logging functionality, screen capture capabilities, and data exfiltration patterns. 
-                                    We identify suspicious keyboard hooks, memory injection, and covert communication channels.
+The system detects keylogger-related behavior by identifying known
+keyboard monitoring patterns, API call references, and surveillance
+indicators embedded within file content, without executing the file.
+
                                 </p>
                                 
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -383,8 +394,6 @@
                                         <ul class="feature-list text-gray-300">
                                             <li>Windows API hook analysis</li>
                                             <li>Keyboard state monitoring</li>
-                                            <li>Screen capture detection</li>
-                                            <li>Clipboard monitoring</li>
                                             <li>Network data exfiltration</li>
                                             <li>Stealth behavior patterns</li>
                                         </ul>
@@ -410,22 +419,22 @@
                         <div class="flex items-start space-x-6">
                             <div class="step-number">4</div>
                             <div class="flex-1">
-                                <h3 class="text-2xl font-bold mb-4 text-white">Permission & Access Control</h3>
+                                <h3 class="text-2xl font-bold mb-4 text-white">Permission & Risk Inference</h3>
                                 <p class="text-gray-300 mb-6">
-                                    We analyze file permissions, access controls, and privilege requirements. Files requesting excessive permissions 
-                                    or attempting to modify system settings are flagged as potential security risks.
+                                   The system infers potential risk based on behavior patterns associated
+                                with elevated privileges, system modification attempts, and persistence techniques.
+                                    This inference helps identify files that may require excessive control
+                                    if executed by a user.
+
                                 </p>
                                 
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     <div>
                                         <h4 class="text-lg font-semibold mb-3 text-blue-400">Analysis Areas</h4>
                                         <ul class="feature-list text-gray-300">
-                                            <li>File system permissions</li>
-                                            <li>Registry access requirements</li>
-                                            <li>Network permission requests</li>
-                                            <li>Administrative privileges</li>
-                                            <li>System modification capabilities</li>
-                                            <li>Cross-user access patterns</li>
+                                            <li>Indicators of privilege abuse intent</li>
+                                            <li>Persistence and startup behavior patterns</li>
+                                            <li>System modification attempt indicators</li>
                                         </ul>
                                     </div>
                                     
@@ -462,9 +471,16 @@
                             <div class="flex-1">
                                 <h3 class="text-2xl font-bold mb-4 text-white">Heuristic & Behavioral Analysis</h3>
                                 <p class="text-gray-300 mb-6">
-                                    Advanced machine learning algorithms analyze file behavior patterns, code structure, and execution flows. 
-                                    This catches zero-day threats and polymorphic malware that signature-based detection might miss.
+A heuristic-based behavioral analysis engine evaluates correlations
+between detected spyware indicators such as surveillance, persistence,
+stealth, and data exfiltration to determine overall threat confidence.
                                 </p>
+                                <p class="text-gray-300 mb-6">
+    An optional AI-assisted explanation layer converts technical analysis results
+    into clear, human-readable security explanations. This improves user understanding
+    without influencing detection decisions.
+                                </p>
+
                                 
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     <div>
@@ -480,13 +496,13 @@
                                     </div>
                                     
                                     <div>
-                                        <h4 class="text-lg font-semibold mb-3 text-blue-400">ML Detection Models</h4>
+                                        <h4 class="text-lg font-semibold mb-3 text-blue-400">Heuristic Correlation Engine</h4>
                                         <div class="space-y-2 text-sm text-gray-300">
-                                            <div>• Random Forest Classification</div>
-                                            <div>• Neural Network Pattern Recognition</div>
-                                            <div>• Support Vector Machines</div>
-                                            <div>• Clustering Analysis</div>
-                                            <div>• Anomaly Detection Algorithms</div>
+                                            <div>• Weighted behavioral indicator scoring</div>
+                                            <div>• Multi-signal threat correlation</div>
+                                            <div>• Confidence score normalization</div>
+                                            <div>• Explainable rule-based decisions</div>
+                                            <div>• AI-ready architecture for future integration</div>
                                         </div>
                                     </div>
                                 </div>
@@ -528,8 +544,25 @@
                             <li>Polymorphic malware identification</li>
                         </ul>
                     </div>
-                    
                     <div class="tech-card">
+                        <h3 class="text-xl font-bold mb-4 text-blue-400">
+                            Behavioral Inference Engine
+                        </h3>
+                        <p class="text-gray-300 mb-4">
+        A rule-driven analysis layer that correlates multiple spyware
+        behaviors to infer threat severity without relying on execution
+        or operating system access.
+                        </p>
+                        <ul class="feature-list text-gray-300">
+                            <li>Surveillance behavior inference</li>
+                            <li>Persistence technique detection</li>
+                            <li>Stealth indicator correlation</li>
+                            <li>Data exfiltration pattern recognition</li>
+                        </ul>
+                    </div>
+
+                    
+                   <!-- <div class="tech-card">
                         <h3 class="text-xl font-bold mb-4 text-blue-400">Machine Learning</h3>
                         <p class="text-gray-300 mb-4">
                             AI-powered detection using trained models to identify malicious characteristics and anomalies.
@@ -540,7 +573,7 @@
                             <li>Adaptive learning</li>
                             <li>Reduced false positives</li>
                         </ul>
-                    </div>
+                    </div> -->
                     
                     <div class="tech-card">
                         <h3 class="text-xl font-bold mb-4 text-blue-400">Static Analysis</h3>
@@ -555,7 +588,7 @@
                         </ul>
                     </div>
                     
-                    <div class="tech-card">
+                    <!--  <div class="tech-card">
                         <h3 class="text-xl font-bold mb-4 text-blue-400">Dynamic Analysis</h3>
                         <p class="text-gray-300 mb-4">
                             Behavioral monitoring of file execution in controlled sandbox environments.
@@ -566,9 +599,9 @@
                             <li>Network traffic analysis</li>
                             <li>Registry modification tracking</li>
                         </ul>
-                    </div>
+                    </div> -->
                     
-                    <div class="tech-card">
+                    <!--  <div class="tech-card">
                         <h3 class="text-xl font-bold mb-4 text-blue-400">Memory Analysis</h3>
                         <p class="text-gray-300 mb-4">
                             Advanced memory inspection to detect injected code, hidden processes, and runtime modifications.
@@ -579,7 +612,7 @@
                             <li>Rootkit identification</li>
                             <li>Process hollowing detection</li>
                         </ul>
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </section>
@@ -587,56 +620,53 @@
         <!-- Threat Intelligence -->
         <section class="py-12 px-4">
             <div class="max-w-6xl mx-auto">
-                <h2 class="font-orbitron text-3xl font-bold text-center mb-12 text-white">Threat Intelligence Integration</h2>
+                <h2 class="font-orbitron text-3xl font-bold text-center mb-12 text-white">Threat Intelligence (Conceptual & AI-Ready)</h2>
                 
                 <div class="analysis-card rounded-xl p-8">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div>
-                            <h3 class="text-2xl font-bold mb-6 text-white">Real-Time Threat Data</h3>
+                            <h3 class="text-2xl font-bold mb-6 text-white">Conceptual Threat Intelligence Model</h3>
                             <p class="text-gray-300 mb-6">
-                                Our system integrates with global threat intelligence networks to provide up-to-date protection against emerging threats. 
-                                This includes malware family identification, attack vector analysis, and threat actor attribution.
+    The current version of ZeroRisk Sentinel uses a locally maintained
+    signature and behavior pattern dataset to demonstrate how threat
+    intelligence concepts can be applied in spyware detection systems.
+    The system architecture is designed to support future integration
+    of external threat intelligence feeds and AI-powered analysis services.
                             </p>
                             
                             <ul class="feature-list text-gray-300">
-                                <li>Global threat feed integration</li>
-                                <li>Malware family tracking</li>
-                                <li>Attack vector analysis</li>
-                                <li>Threat actor attribution</li>
-                                <li>Zero-day vulnerability tracking</li>
-                                <li>Phishing campaign monitoring</li>
+                                <li>Local signature and behavior dataset</li>
+                                <li>Spyware behavior categorization</li>
+                                <li>Threat severity mapping</li>
+                                <li>Explainable threat reasoning</li>
+                                <li>AI-ready integration architecture</li>
                             </ul>
                         </div>
                         
                         <div>
-                            <h3 class="text-2xl font-bold mb-6 text-white">Intelligence Sources</h3>
+                            <h3 class="text-2xl font-bold mb-6 text-white">Planned Intelligence Sources</h3>
                             <div class="space-y-4">
                                 <div class="flex items-center space-x-3">
-                                    <div class="w-3 h-3 bg-green-400 rounded-full"></div>
-                                    <span class="text-gray-300">Government security agencies</span>
-                                </div>
-                                <div class="flex items-center space-x-3">
                                     <div class="w-3 h-3 bg-blue-400 rounded-full"></div>
-                                    <span class="text-gray-300">Cybersecurity research institutions</span>
+                                    <span class="text-gray-300">Public malware research datasets</span>
                                 </div>
                                 <div class="flex items-center space-x-3">
-                                    <div class="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                                    <span class="text-gray-300">Private security vendors</span>
+                                    <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+                                    <span class="text-gray-300">Open-source threat intelligence feeds</span>
                                 </div>
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-3 h-3 bg-red-400 rounded-full"></div>
-                                    <span class="text-gray-300">Community threat sharing</span>
-                                </div>
-                                <div class="flex items-center space-x-3">
+                                    <div class="flex items-center space-x-3">
                                     <div class="w-3 h-3 bg-purple-400 rounded-full"></div>
-                                    <span class="text-gray-300">Dark web monitoring</span>
+                                    <span class="text-gray-300">AI-assisted threat explanation services</span>
                                 </div>
                             </div>
+
                             
                             <div class="mt-6 p-4 bg-gray-800 rounded-lg">
                                 <h4 class="font-semibold mb-2 text-blue-400">Update Frequency</h4>
                                 <p class="text-gray-300 text-sm">
-                                    Threat intelligence updates are pushed to our systems every 15 minutes, ensuring protection against the latest threats.
+                                    Threat patterns and AI explanation logic are currently maintained
+                                    as part of the application for academic evaluation and controlled
+                                    testing purposes.
                                 </p>
                             </div>
                         </div>

@@ -175,6 +175,7 @@ class CyberGuardSpywareAnalyzer {
             "analysisResults",
             JSON.stringify(resultsArray)
         );
+        initializeCharts();
         renderDynamicResults(resultsArray);
     }
     

@@ -385,11 +385,66 @@
                 });
             }
         }
+function calculateChartData() {
+    const storedResults = sessionStorage.getItem("analysisResults");
+    if (!storedResults) {
+        return { safe: 0, warning: 0, critical: 0, avgScore: 0 };
+    }
+
+    const results = JSON.parse(storedResults);
+
+    let safe = 0, warning = 0, critical = 0;
+    let totalScore = 0;
+
+    results.forEach(file => {
+        if (file.threatLevel === "safe") safe++;
+        else if (file.threatLevel === "low" || file.threatLevel === "medium") warning++;
+        else if (file.threatLevel === "high" || file.threatLevel === "critical") critical++;
+
+        totalScore += file.threatScore;
+    });
+
+    const avgThreat = results.length
+        ? Math.round(totalScore / results.length)
+        : 0;
+
+    const avgScore = Math.max(0, 100 - avgThreat);
+
+
+    return { safe, warning, critical, avgScore };
+}
         
         // Initialize charts
         function initializeCharts() {
-            // Threat Distribution Chart
+            console.log("CHART DATA →", calculateChartData());
+            const { safe, warning, critical, avgScore } = calculateChartData();
             const threatChart = echarts.init(document.getElementById('threatChart'));
+            const pieData = [];
+
+            if (safe > 0) {
+                pieData.push({
+                    value: safe,
+                    name: 'Safe Files',
+                    itemStyle: { color: '#00ff41' }
+                });
+            }
+
+            if (warning > 0) {
+                pieData.push({
+                    value: warning,
+                    name: 'Warnings',
+                    itemStyle: { color: '#ff6b35' }
+                });
+            }
+
+            if (critical > 0) {
+                pieData.push({
+                    value: critical,
+                    name: 'Critical Threats',
+                    itemStyle: { color: '#dc143c' }
+                });
+            }
+
             const threatOption = {
                 backgroundColor: 'transparent',
                 tooltip: {
@@ -402,16 +457,17 @@
                     type: 'pie',
                     radius: ['40%', '70%'],
                     center: ['50%', '50%'],
-                    data: [
-                        { value: 8, name: 'Safe Files', itemStyle: { color: '#00ff41' } },
-                        { value: 3, name: 'Warnings', itemStyle: { color: '#ff6b35' } },
-                        { value: 1, name: 'Critical Threats', itemStyle: { color: '#dc143c' } }
-                    ],
+                    data: pieData,
+
                     label: {
                         color: '#ffffff',
-                        fontSize: 12
+                        fontSize: 12,
+                        formatter: function (params) {
+                            return params.name;
+                        }
                     },
                     labelLine: {
+                        show: true,
                         lineStyle: { color: '#ffffff' }
                     }
                 }]
@@ -470,11 +526,18 @@
                     detail: {
                         show: false
                     },
-                    data: [{ value: 67, name: 'Security Score' }]
+                    data: [{ value: avgScore, name: 'Security Score' }]
                 }]
             };
             scoreChart.setOption(scoreOption);
-            
+            document.querySelector(".text-2xl").textContent =
+                `Security Score: ${avgScore}/100`;
+
+            document.querySelector(".text-gray-400").textContent =
+                avgScore <= 30 ? "High Risk Level"
+                : avgScore <= 60 ? "Moderate Risk Level"
+                : "Low Risk Level";
+       
             // Make charts responsive
             window.addEventListener('resize', () => {
                 threatChart.resize();
