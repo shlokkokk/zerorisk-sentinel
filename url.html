@@ -68,7 +68,7 @@
         width: 100%;
         height: 100%;
         z-index: -1;
-        opacity: 0.1;
+        opacity: 0.18;
       }
 
       .glow {
@@ -228,6 +228,19 @@
         box-shadow: 0 0 0px 1000px #000000 inset !important;
         transition: background-color 9999s ease-in-out 0s;
       }
+      #urlInput::placeholder {
+        color: rgba(34, 197, 94, 0.45) !important;
+        -webkit-text-fill-color: rgba(34, 197, 94, 0.45) !important;
+      }
+
+      #urlInput:focus::placeholder {
+        color: rgba(34, 197, 94, 0.25) !important;
+        -webkit-text-fill-color: rgba(34, 197, 94, 0.25) !important;
+      }
+
+      #urlInput::-webkit-input-placeholder {
+        color: rgba(34, 197, 94, 0.45) !important;
+      }
     </style>
   </head>
   <body class="min-h-screen flex flex-col">
@@ -351,10 +364,9 @@
                     id="urlInput"
                     type="text"
                     placeholder="https://example.com"
-                    class="w-full max-w-md mx-auto rounded-lg bg-black border border-green-400/50 text-green-400 placeholder-green-700 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-400 mb-4 font-mono"
+                    class="w-full max-w-md mx-auto rounded-lg bg-black border border-green-400/50 text-green-400 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-400 mb-4 font-mono"
                   />
                 </div>
-
                 <button
                   id="analyzeBtn"
                   class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 glow"
@@ -553,7 +565,7 @@
         loop: true,
       });
 
- /* 
+      /* 
       // Heuristic-based URL analysis for educational demonstration.
       // This does NOT perform live reputation checks or real-time threat intelligence.
       function heuristicAnalyze(url) {
@@ -608,6 +620,12 @@
       // DOM
       const input = document.getElementById("urlInput");
       const btn = document.getElementById("analyzeBtn");
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          btn.click();
+        }
+      });
       const resultsSection = document.getElementById("resultsSection");
       const terminalOutput = document.getElementById("terminalOutput");
 
@@ -630,10 +648,9 @@
 
         document.getElementById("scanningProgress").classList.add("hidden");
         analyzeURL();
-        
       });
 
-     /* function renderResults({ threatLevel, threatScore, findings }) {
+      /* function renderResults({ threatLevel, threatScore, findings }) {
         resultsSection.classList.remove("hidden");
         // UPDATE QUICK STATS COUNTERS
         const safeEl = document.getElementById("safeCount");
@@ -696,7 +713,7 @@
           delay: anime.stagger(100),
           easing: "easeOutExpo",
         });
-      } */   
+      } */
     </script>
     <script src="url-analyzer.js"></script>
   </body>

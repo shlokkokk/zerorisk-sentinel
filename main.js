@@ -523,11 +523,11 @@ class CyberGuardSpywareAnalyzer {
     updateThreatLevel() {
         if (this.analysisResults.size === 0) {
             // Show secure state when no files are analyzed
-            document.getElementById('threatPercentage').textContent = '0%';
+            document.getElementById('threatPercentage').textContent = '—';
             const statusElement = document.getElementById('threatPercentage').nextElementSibling;
-            statusElement.textContent = 'SECURE';
-            statusElement.className = 'text-xs text-green-400';
-            
+            statusElement.textContent = 'NO FILES ANALYZED';
+            statusElement.className = 'text-xs text-gray-400';
+    
             // Set all bars to 100% (secure) when no files
             document.getElementById('integrityBar').style.width = '100%';
             document.getElementById('extensionBar').style.width = '100%';
@@ -549,29 +549,30 @@ class CyberGuardSpywareAnalyzer {
         });
         
         const averageThreat = (totalScore / maxScore) * 100;
+        const securityScore = Math.max(0, Math.round(100 - averageThreat));
         
         // Update threat percentage display
         document.getElementById('threatPercentage').textContent = `${Math.round(averageThreat)}%`;
         
         // Update status based on threat level
         const statusElement = document.getElementById('threatPercentage').nextElementSibling;
-        if (averageThreat >= 80) {
-            statusElement.textContent = 'CRITICAL';
+        if (securityScore <= 20) {
+            statusElement.textContent = 'CRITICAL THREAT';
             statusElement.className = 'text-xs text-red-400';
-        } else if (averageThreat >= 50) {
-            statusElement.textContent = 'HIGH';
+        } else if (securityScore <= 50) {
+            statusElement.textContent = 'HIGH RISK';
+            statusElement.className = 'text-xs text-red-400';
+        } else if (securityScore <= 75) {
+            statusElement.textContent = 'MODERATE RISK';
             statusElement.className = 'text-xs text-yellow-400';
-        } else if (averageThreat >= 25) {
-            statusElement.textContent = 'MEDIUM';
-            statusElement.className = 'text-xs text-yellow-400';
-        } else if (averageThreat >= 10) {
-            statusElement.textContent = 'LOW';
+        } else if (securityScore <= 90) {
+            statusElement.textContent = 'LOW RISK';
             statusElement.className = 'text-xs text-blue-400';
         } else {
-            statusElement.textContent = 'SECURE';
+            statusElement.textContent = 'NO THREAT DETECTED';
             statusElement.className = 'text-xs text-green-400';
         }
-        
+
         // Update progress bars
         this.updateProgressBars(averageThreat);
     }
@@ -653,7 +654,9 @@ class CyberGuardSpywareAnalyzer {
                 </div>
                 <div class="text-right">
                     <div class="text-sm font-medium ${threatColor}">${threatLevel.toUpperCase()}</div>
-                    <div class="text-xs text-gray-400">${analysis ? analysis.threatScore : 0}/100</div>
+                    <div class="text-xs text-gray-400">
+                        ${analysis ? `THREAT ${analysis.threatScore}/100` : 'PENDING ANALYSIS'}
+                    </div>
                 </div>
             `;
             

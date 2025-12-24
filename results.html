@@ -48,7 +48,7 @@
         width: 100%;
         height: 100%;
         z-index: -1;
-        opacity: 0.1;
+        opacity: 0.18;
       }
       /*scrollbar */
       .analysis-card::-webkit-scrollbar {
@@ -65,7 +65,6 @@
         box-shadow: 0 0 6px rgba(0, 212, 255, 0.6);
       }
 
-      /**/
       .analysis-card {
         scrollbar-width: thin;
         scrollbar-color: #00d4ff transparent;
@@ -351,7 +350,7 @@
             <!-- Threat Distribution Chart -->
             <div class="analysis-card rounded-xl p-6">
               <h3 class="text-xl font-semibold mb-6 text-white">
-                Threat Distribution
+                Threat Proximity Map
               </h3>
               <div id="threatChart" class="chart-container"></div>
             </div>
@@ -432,7 +431,9 @@
     </footer>
 
     <script>
-      // Initialize matrix background
+      let securityGaugeChart = null;
+      let lastSecurityScore = 0;
+
       function startMatrixBackground() {
         const canvas = document.getElementById("matrixCanvas");
         const ctx = canvas.getContext("2d");
@@ -548,67 +549,147 @@
         const threatChart = echarts.init(
           document.getElementById("threatChart")
         );
-        const pieData = [];
-
-        if (safe > 0) {
-          pieData.push({
-            value: safe,
-            name: "Safe Files",
-            itemStyle: { color: "#00ff41" },
-          });
-        }
-
-        if (warning > 0) {
-          pieData.push({
-            value: warning,
-            name: "Warnings",
-            itemStyle: { color: "#ff6b35" },
-          });
-        }
-
-        if (critical > 0) {
-          pieData.push({
-            value: critical,
-            name: "Critical Threats",
-            itemStyle: { color: "#dc143c" },
-          });
-        }
-
-        const threatOption = {
-          backgroundColor: "transparent",
-          tooltip: {
-            trigger: "item",
-            backgroundColor: "#1a1a1a",
-            borderColor: "#00d4ff",
-            textStyle: { color: "#ffffff" },
-          },
-          series: [
-            {
-              type: "pie",
-              radius: ["40%", "70%"],
-              center: ["50%", "50%"],
-              data: pieData,
-
-              label: {
-                color: "#ffffff",
-                fontSize: 12,
-                formatter: function (params) {
-                  return params.name;
-                },
-              },
-              labelLine: {
-                show: true,
-                lineStyle: { color: "#ffffff" },
-              },
-            },
-          ],
-        };
-        threatChart.setOption(threatOption);
-
         // Security Score Chart
         const scoreChart = echarts.init(
           document.getElementById("securityScoreChart")
         );
+        securityGaugeChart = scoreChart;
+        lastSecurityScore = avgScore;
+
+        // Threat Proximity Orbit Map (FIXED)
+
+        const RAD = Math.PI / 180;
+        let orbitAnimationId = null;
+
+        const orbitConfig = {
+          critical: { radius: 22, speed: 0.6, color: "#ff0033", size: 9 },
+          warning: { radius: 40, speed: 0.4, color: "#ff9900", size: 8 },
+          safe: { radius: 60, speed: 0.25, color: "#00ff66", size: 8 },
+        };
+
+        const messages = {
+          critical: "High-risk activity detected near system core",
+          warning: "Unusual behavior flagged for review",
+          safe: "No security concerns detected",
+        };
+
+        const emptyMessages = {
+          critical: "No critical threats detected",
+          warning: "No warnings found",
+          safe: "No safe files recorded",
+        };
+
+        let angles = {
+          critical: 0,
+          warning: 120,
+          safe: 240,
+        };
+
+        function buildOrbitPoints(level, count) {
+          const cfg = orbitConfig[level];
+          const total = count > 0 ? count : 6;
+          const real = count > 0;
+
+          return Array.from({ length: total }, (_, i) => {
+            const a = ((i * 360) / total + angles[level]) * RAD;
+            return {
+              value: [cfg.radius * Math.cos(a), cfg.radius * Math.sin(a)],
+              level,
+              real,
+              symbolSize: real ? cfg.size : cfg.size - 2,
+              itemStyle: {
+                color: cfg.color,
+                opacity: real ? 1 : 0.18,
+                shadowBlur: real ? 14 : 0,
+                shadowColor: cfg.color,
+              },
+            };
+          });
+        }
+
+        // ---- Initial static layout (ONLY ONCE)
+        threatChart.setOption({
+          backgroundColor: "transparent",
+          grid: { left: 0, right: 0, top: 0, bottom: 0 },
+
+          xAxis: { show: false, min: -70, max: 70, scale: false },
+          yAxis: { show: false, min: -70, max: 70, scale: false },
+
+          tooltip: {
+            trigger: "item",
+            confine: true,
+            backgroundColor: "#0a0a0a",
+            borderColor: "#222",
+            textStyle: { color: "#eee", fontFamily: "JetBrains Mono" },
+            formatter: (p) => {
+              const lvl = p.data.level;
+              return `
+        <div style="font-weight:600;margin-bottom:4px">
+          ${lvl.toUpperCase()}
+        </div>
+        <div style="font-size:12px;opacity:.85">
+          ${p.data.real ? messages[lvl] : emptyMessages[lvl]}
+        </div>`;
+            },
+          },
+          series: [
+            // Orbit rings
+            ...["critical", "warning", "safe"].map((k) => ({
+              type: "line",
+              silent: true,
+              symbol: "none",
+              lineStyle: { opacity: 0.18 },
+              data: Array.from({ length: 360 }, (_, i) => [
+                orbitConfig[k].radius * Math.cos(i * RAD),
+                orbitConfig[k].radius * Math.sin(i * RAD),
+              ]),
+            })),
+
+            // Dots (filled by animation)
+            { type: "scatter", data: [] },
+            { type: "scatter", data: [] },
+            { type: "scatter", data: [] },
+          ],
+        });
+
+        // CLEAN animation loop
+        function animateOrbits() {
+          angles.critical += orbitConfig.critical.speed;
+          angles.warning += orbitConfig.warning.speed;
+          angles.safe += orbitConfig.safe.speed;
+
+          threatChart.setOption(
+            {
+              series: [
+                {},
+                {},
+                {},
+                { data: buildOrbitPoints("critical", critical) },
+                { data: buildOrbitPoints("warning", warning) },
+                { data: buildOrbitPoints("safe", safe) },
+              ],
+            },
+            false
+          );
+
+          orbitAnimationId = requestAnimationFrame(animateOrbits);
+        }
+
+        animateOrbits();
+
+        // ---- HARD RESET ON RESIZE (THIS FIXES MOBILE BUG)
+        window.addEventListener("resize", () => {
+          if (orbitAnimationId) {
+            cancelAnimationFrame(orbitAnimationId);
+            orbitAnimationId = null;
+          }
+
+          threatChart.resize();
+
+          angles = { critical: 0, warning: 120, safe: 240 };
+          animateOrbits();
+        });
+
         const scoreOption = {
           backgroundColor: "transparent",
           series: [
@@ -660,7 +741,7 @@
               detail: {
                 show: false,
               },
-              data: [{ value: avgScore, name: "Security Score" }],
+              data: [{ value: 0, name: "Security Score" }],
             },
           ],
         };
@@ -681,6 +762,9 @@
           threatChart.resize();
           scoreChart.resize();
         });
+        setTimeout(() => {
+          threatChart.resize();
+        }, 4500);
       }
 
       // Action functions
@@ -925,6 +1009,29 @@
             }
           });
         }, observerOptions);
+        // Animate security gauge when it comes into view
+        const gaugeTarget = document.getElementById("securityScoreChart");
+
+        const gaugeObserver = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting && securityGaugeChart) {
+                securityGaugeChart.setOption({
+                  series: [
+                    {
+                      data: [{ value: lastSecurityScore }],
+                    },
+                  ],
+                });
+              }
+            });
+          },
+          { threshold: 0.5 }
+        );
+
+        if (gaugeTarget) {
+          gaugeObserver.observe(gaugeTarget);
+        }
 
         document.querySelectorAll(".analysis-card").forEach((card) => {
           card.style.opacity = "0";
