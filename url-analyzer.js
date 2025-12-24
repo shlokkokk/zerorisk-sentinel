@@ -1,7 +1,7 @@
-// These are heuristic signals not proof of malicious intent.
+// These are heuristic signals not proof of malicious intent
 
 // ai gen explanation for findings
- 
+
 function generateHeuristicExplanation(findings, threatLevel, url) {
   const explanationMap = {
     "Uses URL shortener (destination obfuscated)":
