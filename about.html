@@ -305,16 +305,17 @@ body {
                     Advanced <span class="text-blue-400">Cybersecurity</span> Methodology
                 </h1>
                 <p class="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
-                   A transparent and explainable security analysis methodology based on static analysis,
-                    heuristic indicators, behavioral inference, and optional AI-assisted explanations.
-
+  A clear and explainable security analysis approach built around static inspection,
+  heuristic signals, behavioral inference, and optional AI-assisted explanations.
+  Designed to highlight risk before execution, not after damage.
                 </p>
+
                 
                 <!-- Key Statistics -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12">
                     <div class="statistic-card">
                         <div class="statistic-number">127</div>
-                        <div class="text-gray-400">Known File Signatures</div>
+                        <div class="text-gray-400">Detection Patterns & Rules</div>
                     </div>
                     <div class="statistic-card">
                         <div class="statistic-text">Rule-Based</div>
@@ -340,11 +341,11 @@ body {
 
     <div class="analysis-card rounded-xl p-6">
       <p class="text-gray-300 mb-4">
-        ZeroRisk Sentinel is designed as an educational and demonstrative
-        cybersecurity tool that showcases how static analysis and heuristic
-        techniques can be used to assess potential risks in files and URLs
-        before execution or interaction.
-      </p>
+  ZeroRisk Sentinel is built as a practical and educational cybersecurity project.
+  It demonstrates how static analysis and heuristic techniques can be used to
+  evaluate potential risks in files and URLs before they are executed or interacted with.
+       </p>
+
 
       <ul class="feature-list text-gray-300">
         <li>Performs static analysis only (no file or URL execution)</li>
@@ -592,6 +593,28 @@ indicators embedded within file content, without executing the file.
                             </div>
                         </div>
                     </div>
+<!-- Step 4.5: APK Static Analysis -->
+<div class="methodology-card">
+  <div class="flex items-start space-x-6">
+    <div class="step-number">4.5</div>
+    <div class="flex-1">
+      <h3 class="text-2xl font-bold mb-4 text-white">APK Static Permission Analysis</h3>
+      <p class="text-gray-300 mb-6">
+        Android application packages (APKs) are analyzed using static inspection.
+        The system extracts metadata and declared permissions to infer potential
+        security risks without executing the application.
+      </p>
+
+      <ul class="feature-list text-gray-300">
+        <li>Extraction of package metadata and components</li>
+        <li>Detection of high-risk permission requests</li>
+        <li>Permission combination risk scoring</li>
+        <li>No runtime execution or emulation</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
                     
                     <!-- Step 5: Behavioral Analysis -->
                     <div class="methodology-card">
@@ -607,7 +630,7 @@ stealth, and data exfiltration to determine overall threat confidence.
                                 <p class="text-gray-300 mb-6">
     An optional AI-assisted explanation layer converts technical analysis results
     into clear, human-readable security explanations. This improves user understanding
-    without influencing detection decisions.
+    without altering detection logic or risk scoring.
                                 </p>
 
                                 
@@ -660,7 +683,35 @@ stealth, and data exfiltration to determine overall threat confidence.
     </div>
   </div>
 </section>
- 
+<section class="py-12 px-4">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="font-orbitron text-3xl font-bold text-center mb-12 text-white">
+      Architecture Design Philosophy
+    </h2>
+
+    <div class="analysis-card rounded-xl p-6">
+      <p class="text-gray-300 mb-4">
+        ZeroRisk Sentinel is intentionally designed as a hybrid-ready system.
+        The current implementation relies on fully client-side analysis to ensure
+        transparency, offline capability, and zero data exposure.
+      </p>
+
+      <p class="text-gray-300 mb-4">
+        At the same time, the internal structure is built to support optional
+        backend-assisted analysis in the future, without breaking or replacing
+        existing logic.
+      </p>
+
+      <ul class="feature-list text-gray-300">
+        <li>Client-side analysis remains the primary and fail-safe layer</li>
+        <li>Backend services enhance analysis depth without replacing client-side logic</li>
+        <li>AI explanations can be optional and non-blocking</li>
+        <li>Results can be correlated locally or server-side</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
         
         <!-- Technology Stack -->
         <section class="py-12 px-4">
@@ -674,10 +725,10 @@ stealth, and data exfiltration to determine overall threat confidence.
                             Traditional but effective method using known malware signatures and patterns. Fast and accurate for known threats.
                         </p>
                         <ul class="feature-list text-gray-300">
-                            <li>15,000+ malware signatures</li>
+                            <li>Curated signature and pattern set for demonstration</li>
                             <li>Real-time pattern matching</li>
-                            <li>Low false positive rate</li>
-                            <li>High performance scanning</li>
+                            <li>Rule-based indicators with explainable outcomes</li>
+                            <li>Client-side scanning without server dependency</li>
                         </ul>
                     </div>
                     
@@ -689,8 +740,8 @@ stealth, and data exfiltration to determine overall threat confidence.
                         <ul class="feature-list text-gray-300">
                             <li>Behavioral pattern recognition</li>
                             <li>Code structure analysis</li>
-                            <li>Zero-day threat detection</li>
-                            <li>Polymorphic malware identification</li>
+                            <li>Unknown threat behavior inference</li>
+                            <li>Obfuscation and variation awareness</li>
                         </ul>
                     </div>
                     <div class="tech-card">
@@ -784,7 +835,7 @@ stealth, and data exfiltration to determine overall threat confidence.
                             </p>
                             
                             <ul class="feature-list text-gray-300">
-                                <li>Local signature and behavior dataset</li>
+                                <li>Locally maintained signature and behavior dataset</li>
                                 <li>Spyware behavior categorization</li>
                                 <li>Threat severity mapping</li>
                                 <li>Explainable threat reasoning</li>
@@ -794,6 +845,10 @@ stealth, and data exfiltration to determine overall threat confidence.
                         
                         <div>
                             <h3 class="text-2xl font-bold mb-6 text-white">Planned Intelligence Sources</h3>
+                            <p class="text-gray-400 text-sm mb-4">
+  The following sources represent future expansion ideas and are not active in the current implementation.
+                            </p>
+
                             <div class="space-y-4">
                                 <div class="flex items-center space-x-3">
                                     <div class="w-3 h-3 bg-blue-400 rounded-full"></div>
@@ -823,7 +878,36 @@ stealth, and data exfiltration to determine overall threat confidence.
                 </div>
             </div>
         </section>
-        
+<section class="py-12 px-4">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="font-orbitron text-3xl font-bold text-center mb-12 text-white">
+      Future Scope & Planned Enhancements
+    </h2>
+
+    <div class="analysis-card rounded-xl p-6">
+      <p class="text-gray-300 mb-4">
+        While the current version of ZeroRisk Sentinel focuses on static,
+        explainable, and offline analysis, the project is intentionally structured
+        to grow without disrupting its core logic.
+      </p>
+
+      <ul class="feature-list text-gray-300">
+        <li>Expanded backend-based analysis and correlation for improved accuracy</li>
+        <li>Extended APK analysis including deeper permission and behavior mapping</li>
+        <li>Support for additional file formats and document types</li>
+        <li>Sandbox-assisted dynamic analysis as a separate analysis layer</li>
+        <li>AI-assisted classification and summarization (opt-in only)</li>
+        <li>Exportable, shareable, and verifiable analysis reports</li>
+      </ul>
+
+      <p class="text-gray-400 text-sm mt-4">
+        All future additions are planned as enhancements, not replacements,
+        ensuring the system remains transparent and user-controlled.
+      </p>
+    </div>
+  </div>
+</section>
+
         <!-- Best Practices -->
         <section class="py-12 px-4">
             <div class="max-w-6xl mx-auto">
