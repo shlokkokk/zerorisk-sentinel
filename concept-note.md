@@ -9,6 +9,11 @@ Modern cybersecurity threats rarely exist in isolation. Malicious files, spyware
 
 **ZeroRisk Sentinel** is a cybersecurity analysis platform developed to demonstrate how multiple security checks can be combined into a single, coherent system. The project focuses on static analysis, heuristic detection, and behavior-based inference to identify potential risks in files, URLs, and mobile applications *before* they are opened or executed.
 
+To improve clarity and user understanding, ZeroRisk Sentinel also includes an optional
+AI-assisted explanation layer that converts finalized heuristic findings into
+human-readable security explanations. The AI component does not influence detection,
+risk scoring, or verdicts.
+
 Rather than being built around a single narrow problem statement, ZeroRisk Sentinel is designed as a flexible and extensible platform capable of addressing multiple cybersecurity concerns in a realistic and practical manner.
 
 ---
@@ -23,6 +28,7 @@ ZeroRisk Sentinel relates to all of these problem areas without being restricted
 - suspicious URLs can be identified using heuristic rules  
 - unsafe files can be flagged before execution  
 - mobile application risks can be estimated through permission analysis  
+- technical security findings can be interpreted using optional AI-assisted explanations
 
 This integrated approach reflects how real-world security systems operate, where threats must be analyzed together rather than in isolation.
 
@@ -38,6 +44,7 @@ The primary objectives of ZeroRisk Sentinel are:
 - To present security findings in a clear and understandable format
 - To remain functional even when AI or backend services are unavailable
 - To serve as an educational and academic cybersecurity project
+- To provide optional AI-assisted explanations without making AI mandatory for detection
 
 ---
 
@@ -66,12 +73,12 @@ ZeroRisk Sentinel is composed of multiple analysis modules, each focused on a sp
 - Permission-based behavioral risk inference
 - No runtime execution or sandboxing of applications
 
-### 4.4 Explanation Layer
+### 4.4 Explanation & AI Layer
 - Converts technical findings into human-readable explanations
 - Uses offline heuristic explanations by default
 - Supports optional AI-assisted explanations
 - Detection and scoring logic remains independent of AI
-
+- AI explanations are optional, non-blocking, and do not affect detection logic
 ---
 
 ## 5. Methodology / Workflow
@@ -84,6 +91,7 @@ The general workflow of ZeroRisk Sentinel follows these steps:
 4. Individual findings are assigned weighted risk values  
 5. Findings are correlated into an overall threat profile  
 6. Results are presented using visual indicators and explanations  
+7. An optional AI-assisted explanation is generated to improve result interpretability
 
 At no point are files executed or URLs opened during the analysis process.
 
@@ -91,7 +99,7 @@ At no point are files executed or URLs opened during the analysis process.
 
 ## 6. Security & Privacy Considerations
 
-- All primary analysis is performed locally in the browser
+- File and URL analysis is performed locally in the browser
 - APK analysis is handled via a controlled backend without execution
 - No permanent storage of scanned files or results
 - Temporary data is handled using session-based mechanisms
@@ -105,7 +113,7 @@ At no point are files executed or URLs opened during the analysis process.
 - Detection results are heuristic-based and not absolute proof
 - The system does not replace antivirus or enterprise security solutions
 - APK analysis focuses on permissions and structure, not runtime behavior
-- AI-assisted explanations are optional and informational only
+- AI-assisted explanations are informational only and do not influence analysis outcomes
 
 These limitations are intentional and align with the academic and demonstrative purpose of the project.
 
@@ -130,8 +138,9 @@ Planned future enhancements include:
 - **Advanced APK behavior analysis**  
   Expanding Android application analysis beyond permissions to include component relationships, API usage patterns, and deeper behavioral inference through backend processing.
 
-- **AI-assisted detection and explanation**  
-  Enhancing classification accuracy and explanation clarity using AI-based models, without making AI a hard dependency for detection decisions.
+- **Future AI-assisted detection and explanation**  
+  Exploring the use of AI models to support detection and improve explanation clarity,
+  while keeping heuristic analysis as the primary decision-making layer.
 
 - **Structured reporting and collaboration features**  
   Generating detailed, exportable analysis reports and enabling sharing of results for academic review, demonstrations, and collaborative evaluation.
