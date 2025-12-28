@@ -20,7 +20,7 @@ function generateHeuristicExplanation(findings, threatLevel, url) {
       "IP-based URLs avoid domain reputation checks and hide ownership, which is common in malicious infrastructure.",
 
     "Contains sensitive query parameters commonly abused in phishing":
-      "Parameters like tokens or session IDs may indicate attempts to capture authentication data."
+      "Parameters like tokens or session IDs may indicate attempts to capture authentication data.",
   };
 
   let text = `ZeroRisk Sentinel analyzed "${url}" and identified ${
@@ -39,7 +39,7 @@ function generateHeuristicExplanation(findings, threatLevel, url) {
     low: "Low risk indicators detected.",
     medium: "Multiple suspicious indicators detected.",
     high: "Strong correlation with phishing or malicious behavior.",
-    critical: "High-confidence malicious intent detected."
+    critical: "High-confidence malicious intent detected.",
   };
 
   text += `\n${riskMap[threatLevel]}\n`;
@@ -65,6 +65,23 @@ const SUSPICIOUS_PARAMS =
 function analyzeURL() {
   const input = document.getElementById("urlInput");
   const url = input.value.trim();
+  let parsedUrl;
+
+  try {
+    parsedUrl = new URL(
+      url.startsWith("http://") || url.startsWith("https://")
+        ? url
+        : "http://" + url
+    );
+  } catch (e) {
+    alert("Invalid URL format");
+    return;
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const protocol = parsedUrl.protocol;
+  const path = parsedUrl.pathname;
+  const query = parsedUrl.search;
 
   if (!url) {
     alert("Enter a URL");
@@ -75,7 +92,7 @@ function analyzeURL() {
   let findings = [];
 
   // Rule 1: IP-based URL
-  if (/https?:\/\/\d+\.\d+\.\d+\.\d+/.test(url)) {
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) {
     score += 30;
     findings.push("Uses raw IP address instead of domain");
   }
@@ -96,10 +113,11 @@ function analyzeURL() {
   }
 
   // Rule 4: No HTTPS
-  if (!url.startsWith("https://")) {
+  if (protocol !== "https:") {
     score += 15;
     findings.push("Connection is not HTTPS");
   }
+
   // Rule 5: High-risk TLD (simulated domain age risk)
   if (HIGH_RISK_TLDS.test(url)) {
     score += 25;
@@ -108,29 +126,33 @@ function analyzeURL() {
     );
   }
   // Rule 6: Lookalike domain using numbers
-  const domainPart = url
-    .replace("https://", "")
-    .replace("http://", "")
-    .split("/")[0];
-  if (/[0-9]/.test(domainPart)) {
+  if (
+    BRAND_KEYWORDS.test(hostname) &&
+    (PHISHING_KEYWORDS.test(url) ||
+      HIGH_RISK_TLDS.test(hostname) ||
+      URL_SHORTENERS.test(url))
+  ) {
     score += 15;
     findings.push(
-      "Possible lookalike domain using numbers to mimic trusted brands"
+      "Brand name used alongside phishing indicators — possible impersonation attempt"
     );
   }
+
   // Rule 7: Excessive URL path depth
-  const pathDepth = url.split("/").length - 3;
+  const pathDepth = path.split("/").filter(Boolean).length;
   if (pathDepth >= 5) {
     score += 10;
     findings.push("Unusually deep URL path structure");
   }
+
   // Rule 8: Suspicious query parameters
-  if (SUSPICIOUS_PARAMS.test(url)) {
+  if (query && SUSPICIOUS_PARAMS.test(query)) {
     score += 20;
     findings.push(
       "Contains sensitive query parameters commonly abused in phishing"
     );
   }
+
   // Rule 9: Brand impersonation ONLY when combined with risk signals
   if (
     BRAND_KEYWORDS.test(url) &&
@@ -140,12 +162,12 @@ function analyzeURL() {
   ) {
     score += 15;
     findings.push(
-      "Brand name combined with phishing patterns — possible impersonation"
+      "Brand name used alongside phishing indicators — possible impersonation attempt"
     );
   }
   // Rule 10 Subdomain(brand buried in subdomain)
-  const hostname = domainPart.toLowerCase();
-  if (hostname.split(".").length > 3 && BRAND_KEYWORDS.test(hostname)) {
+  const parts = hostname.split(".");
+  if (parts.length > 3 && BRAND_KEYWORDS.test(parts.slice(0, -2).join("."))) {
     score += 20;
     findings.push(
       "Brand name appears in subdomain — common phishing evasion technique"

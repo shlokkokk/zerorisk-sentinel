@@ -598,58 +598,6 @@
         loop: true,
       });
 
-      /* 
-      // Heuristic-based URL analysis for educational demonstration.
-      // This does NOT perform live reputation checks or real-time threat intelligence.
-      function heuristicAnalyze(url) {
-        const findings = [];
-        let score = 0;
-
-        if (!url.startsWith("https://")) {
-          findings.push("Non-HTTPS protocol");
-          score += 15;
-        }
-        if (/^(https?:\/\/)?\d+\.\d+\.\d+\.\d+/.test(url)) {
-          findings.push("IP-based URL");
-          score += 25;
-        }
-        if (/\.tk$|\.ml$|\.cf$|\.gq$|\.top$|\.click$|\.download$/.test(url)) {
-          findings.push("Suspicious TLD");
-          score += 20;
-        }
-        if (/bit\.ly|tinyurl|t\.co|short\.link|ow\.ly/.test(url)) {
-          findings.push("URL shortener detected");
-          score += 15;
-        }
-        if (url.length > 80) {
-          findings.push("Overly long URL");
-          score += 10;
-        }
-        if (/[@]/.test(url)) {
-          findings.push("Username in URL");
-          score += 10;
-        }
-        if (/login|verify|secure|account|update/i.test(url)) {
-          findings.push("Credential lure keywords detected");
-          score += 10;
-        }
-
-        if (findings.length === 0) {
-          findings.push("No obvious heuristic issues");
-          score = Math.max(0, score);
-        }
-
-        const threatLevel =
-          score > 60
-            ? "high"
-            : score > 35
-            ? "medium"
-            : score > 15
-            ? "low"
-            : "safe";
-        return { threatLevel, threatScore: Math.min(100, score), findings };
-      }
-    */
       // DOM
       const input = document.getElementById("urlInput");
       const btn = document.getElementById("analyzeBtn");
@@ -672,11 +620,23 @@
         const progressText = document.getElementById("progressText");
         const currentFile = document.getElementById("currentFile");
 
+        const steps = [
+          "Parsing URL structure",
+          "Checking protocol security",
+          "Analyzing domain patterns",
+          "Evaluating phishing indicators",
+          "Finalizing risk score",
+        ];
+
         for (let i = 0; i <= 100; i += 10) {
           progressFill.style.width = i + "%";
           progressText.textContent = i + "%";
-          currentFile.textContent = `Analyzing URL structure... ${i}%`;
-          await new Promise((r) => setTimeout(r, 150));
+
+          const stepIndex = Math.min(Math.floor(i / 20), steps.length - 1);
+
+          currentFile.textContent = `${steps[stepIndex]}... ${i}%`;
+
+          await new Promise((r) => setTimeout(r, 800));
         }
 
         document.getElementById("scanningProgress").classList.add("hidden");
