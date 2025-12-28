@@ -1268,12 +1268,20 @@ function renderDynamicResults(results) {
                 </div>
                 <!-- AI EXPLANATION -->
                 <div class="analysis-card p-4">
-                    <h4 class="text-blue-400 font-semibold mb-2">
-                        AI-Assisted Threat Explanation
-                    </h4>
-                    <p id="${aiId}" class="text-gray-300 text-sm">
-                        AI is analyzing this file…
-                    </p>
+                  <h4 class="text-blue-400 font-semibold mb-1">
+                    AI-Assisted Threat Explanation
+                  </h4>
+
+                  <p id="${aiId}" class="text-gray-300 text-sm mb-2">
+                    AI is analyzing this file…
+                  </p>
+
+                  <span
+                    id="${aiId}_badge"
+                    class="text-xs text-gray-500"
+                  >
+                    Explanation source: checking backend…
+                  </span>
                 </div>
             </div>
         `;
@@ -1292,105 +1300,101 @@ async function runAIExplanation(file, targetId) {
 
   element.textContent = "Analyzing threat behavior using AI…";
 
-  const summary = `
-File name: ${file.name}
-Threat level: ${file.threatLevel}
-Threat score: ${file.threatScore}
+  // Build AI payload (GENERIC, FUTURE-PROOF)
+  const payload = {
+    analysis_type: "file",
+    target: file.name,
+    threat_score: file.threatScore,
+    threat_level: file.threatLevel,
+    findings: file.findings.map((f) => f.description),
+  };
 
-Spyware behavior:
-- Surveillance: ${file.spywareProfile.surveillance}
-- Persistence: ${file.spywareProfile.persistence}
-- Stealth: ${file.spywareProfile.stealth}
-- Data Exfiltration: ${file.spywareProfile.dataExfiltration}
-- Credential Harvesting: ${file.spywareProfile.credentialHarvesting}
+  // Try backend AI first
+  try {
+    const response = await fetch(
+      "https://cyberthon-backend.onrender.com/api/ai-explain",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
 
-Findings:
-${file.findings.map((f) => "- " + f.description).join("\n")}
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.ai_explanation) {
+        element.textContent = data.ai_explanation;
 
-Explain why this file is dangerous in simple terms.
-`;
-  /*
-This block enables real LLM-based explanations
-via a secure backend API 
-To enable real AI explanations first create the endpoint which i alr did below
-then store api key securely and uncomment this block.
-connect w backend and return normal text exp to users
+        const badge = document.getElementById(targetId + "_badge");
+        if (badge) {
+          badge.textContent = "Explanation source: AI-assisted";
+        }
 
-For this version, an offline heuristic explanation
-engine is used to ensure consistent behavior
-across all systems and during evaluations.
-    try {
-        const response = await fetch("/api/ai-explain", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ summary })
-        });
-
-        const data = await response.json();
-        element.textContent = data.explanation;
-
-    } catch (err) {
-        element.textContent =
-            "AI explanation unavailable. Showing heuristic-based analysis.";
+        return;
+      }
     }
-*/
-  // 🧠 Heuristic AI Explanation Engine (Offline)
-  let explanation = [];
+  } catch (e) {
+    // silently fail → fallback below
+  }
+
+  // 🔁 FALLBACK: Heuristic explanation (OFFLINE, GUARANTEED)
+  const explanation = [];
 
   if (file.threatLevel === "critical" || file.threatLevel === "high") {
     explanation.push(
-      "This file demonstrates multiple coordinated behaviors commonly seen in spyware. It attempts to collect sensitive information, remain active on the system, and operate without user awareness, indicating a high-severity security threat."
+      "This file exhibits multiple coordinated behaviors commonly associated with spyware or malicious software. These indicators suggest elevated security risk, though static analysis alone cannot confirm intent."
     );
   }
 
-  if (file.spywareProfile.surveillance) {
+  if (file.spywareProfile?.surveillance) {
     explanation.push(
-      "Indicators suggest that this file may secretly monitor user activity, such as application usage or on-screen behavior, without user knowledge or consent."
+      "Indicators suggest potential monitoring of user activity or system behavior without clear user awareness."
     );
   }
 
-  if (file.spywareProfile.credentialHarvesting) {
+  if (file.spywareProfile?.credentialHarvesting) {
     explanation.push(
-      "The file shows behavior consistent with collecting usernames, passwords, or other sensitive input, posing a direct risk to personal and account security."
+      "Patterns consistent with credential collection were identified, which may expose sensitive user information."
     );
   }
 
-  if (file.spywareProfile.persistence) {
+  if (file.spywareProfile?.persistence) {
     explanation.push(
-      "This file attempts to maintain long-term presence by restarting automatically or embedding itself into system startup processes, making removal more difficult."
+      "The file shows signs of persistence mechanisms that could allow it to remain active across system restarts."
     );
   }
 
-  if (file.spywareProfile.dataExfiltration) {
-    if (file.spywareProfile.networkContext === "web") {
-      explanation.push(
-        "This file contains network-related functionality commonly used in web applications, such as loading external resources or making HTTP requests. Static analysis did not identify evidence of malicious data exfiltration."
-      );
-    } else {
-      explanation.push(
-        "Network-related activity was identified that could enable data transmission to external servers. Such capabilities are sometimes leveraged by spyware, though malicious intent cannot be confirmed through static analysis alone."
-      );
-    }
+  if (file.spywareProfile?.dataExfiltration) {
+    explanation.push(
+      "Network-capable functionality was detected. While not conclusively malicious, such behavior can be abused for unauthorized data transmission."
+    );
   }
 
   if (file.keyloggerDetected) {
     explanation.push(
-      "Keystroke monitoring behavior was detected, allowing the file to record typed information such as passwords, messages, or financial data."
+      "Keystroke monitoring indicators were detected, which may allow the capture of typed input such as passwords or messages."
     );
   }
 
   if (explanation.length === 0) {
     explanation.push(
-      "Static analysis did not identify overt malicious payloads. However, structural indicators and behavioral capabilities suggest elevated risk. Advanced or runtime-based threats cannot be ruled out."
+      "No overtly malicious payloads were identified through static analysis. However, structural indicators suggest caution is warranted."
     );
   }
 
   element.textContent = explanation.join(" ");
+  const badge = document.getElementById(targetId + "_badge");
+  if (badge) {
+    badge.textContent = "Explanation source: heuristic (offline mode)";
+  }
 }
 
 // Initialize the application when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
   new CyberGuardSpywareAnalyzer();
+  updateBackendStatus();
+
+  setInterval(updateBackendStatus, 30000);
 });
 
 // Add some utility functions for enhanced functionality
@@ -1576,3 +1580,24 @@ window.addEventListener("touchend", (e) => {
 
   handleSwipe();
 });
+async function updateBackendStatus() {
+  const dot = document.getElementById("backendStatusDot");
+  const text = document.getElementById("backendStatusText");
+
+  if (!dot || !text) return;
+
+  try {
+    const res = await fetch(
+      "https://cyberthon-backend.onrender.com/api/status",
+      { cache: "no-store" }
+    );
+
+    if (!res.ok) throw new Error("Backend error");
+
+    dot.className = "w-2 h-2 rounded-full bg-green-400 transition-colors";
+    text.textContent = "Backend Active";
+  } catch (err) {
+    dot.className = "w-2 h-2 rounded-full bg-red-400 transition-colors";
+    text.textContent = "Backend Offline (Heuristic Mode)";
+  }
+}

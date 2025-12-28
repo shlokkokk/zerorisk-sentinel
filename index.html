@@ -318,8 +318,16 @@ body {
                 </div>
                 
                 <div class="flex items-center space-x-3">
-                    <div class="status-indicator"></div>
-                    <span class="text-sm text-gray-300">Scanner Ready</span>
+                    <span
+                        id="backendStatusDot"
+                        class="w-2 h-2 rounded-full bg-gray-400 transition-colors"
+                    ></span>
+                    <span
+                        id="backendStatusText"
+                        class="text-sm text-gray-300"
+                    >
+                        Checking backend…
+                    </span>
                 </div>
             </div>
         </div>
