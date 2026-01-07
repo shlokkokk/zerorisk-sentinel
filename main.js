@@ -360,6 +360,27 @@ class CyberGuardSpywareAnalyzer {
         confidenceScore: 0,
       },
     };
+    const MAX_APK_SIZE = 8 * 1024 * 1024; // 8 MB
+
+    if (file.name.toLowerCase().endsWith(".apk") && file.size > MAX_APK_SIZE) {
+      analysis.threatLevel = "low";
+      analysis.threatScore = 10;
+      analysis.riskExposure = "APK too large for cloud analysis";
+
+      analysis.findings.push({
+        type: "apk_size_limit",
+        severity: "low",
+        description:
+          "APK exceeds cloud upload limits. Full analysis requires local backend.",
+      });
+
+      showNotification(
+        "APK too large for online analysis. Use local backend for full scan.",
+        "error"
+      );
+
+      return analysis; // ⛔ DO NOT upload to backend
+    }
 
     try {
       // Read file header (first 32 bytes)
@@ -435,21 +456,30 @@ class CyberGuardSpywareAnalyzer {
           const backend = await res.json();
 
           if (backend.success) {
+            const level = backend.data.risk_level || "safe";
+
             analysis.apkAnalysis = {
               backendAvailable: true,
-
-              riskScore: backend.data.risk_score,
-              riskLevel: backend.data.risk_level,
-              riskyPermissions: backend.data.risky_permissions,
-              explanation: backend.data.explanation,
-
-              apkMetadata: backend.data.apk_metadata,
+              riskScore: backend.data.risk_score ?? 0,
+              riskLevel: level,
+              riskyPermissions: backend.data.risky_permissions ?? [],
+              explanation:
+                backend.data.explanation || "No explanation available",
+              apkMetadata: backend.data.apk_metadata || {},
             };
 
             analysis.threatScore = backend.data.risk_score;
             analysis.threatLevel = backend.data.risk_level;
 
-            analysis.spywareProfile = null;
+            analysis.spywareProfile = {
+              surveillance: false,
+              dataExfiltration: false,
+              persistence: false,
+              stealth: false,
+              credentialHarvesting: false,
+              confidenceScore: 0,
+              networkContext: "apk",
+            };
             analysis.keyloggerDetected = false;
             analysis.riskExposure = "Permission-based Android analysis";
 
@@ -1601,3 +1631,56 @@ async function updateBackendStatus() {
     text.textContent = "Backend Offline (Heuristic Mode)";
   }
 }
+
+function setScanMode(mode) {
+  sessionStorage.setItem("scanMode", mode);
+  updateDemoUI();
+}
+
+function updateDemoUI() {
+  const mode = sessionStorage.getItem("scanMode") || "live";
+
+  const demoFiles = document.getElementById("demoSamples");
+  if (demoFiles) {
+    demoFiles.classList.toggle("hidden", mode !== "demo");
+  }
+
+  const demoUrls = document.getElementById("demoUrls");
+  if (demoUrls) {
+    if (mode === "demo") {
+      demoUrls.classList.remove("hidden");
+
+      demoUrls.querySelectorAll(".analysis-card").forEach((card) => {
+        card.style.opacity = "1";
+        card.style.transform = "translateY(0)";
+      });
+
+      setTimeout(() => {
+        demoUrls.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    } else {
+      demoUrls.classList.add("hidden");
+    }
+  }
+
+  const liveBtn = document.getElementById("liveModeBtn");
+  const demoBtn = document.getElementById("demoModeBtn");
+
+  if (liveBtn && demoBtn) {
+    if (mode === "demo") {
+      demoBtn.classList.add("bg-blue-600", "text-white");
+      demoBtn.classList.remove("bg-gray-700", "text-gray-300");
+
+      liveBtn.classList.remove("bg-blue-600", "text-white");
+      liveBtn.classList.add("bg-gray-700", "text-gray-300");
+    } else {
+      liveBtn.classList.add("bg-blue-600", "text-white");
+      liveBtn.classList.remove("bg-gray-700", "text-gray-300");
+
+      demoBtn.classList.remove("bg-blue-600", "text-white");
+      demoBtn.classList.add("bg-gray-700", "text-gray-300");
+    }
+  }
+}
+
+document.addEventListener("DOMContentLoaded", updateDemoUI);

@@ -372,8 +372,60 @@ body {
                                 Select Files
                             </button>
                         </div>
-                    </div>                    
-                    <!-- File Input (Hidden) -->
+                    </div>   
+                    <div class="flex flex-col items-center gap-2 mb-8">
+                    
+                      <div class="flex justify-center gap-2">
+                        <button
+                          onclick="setScanMode('live')"
+                          class="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium"
+                          id="liveModeBtn"
+                        >
+                          Live Mode
+                        </button>
+                    
+                        <button
+                          onclick="setScanMode('demo')"
+                          class="px-4 py-2 rounded-lg bg-gray-700 text-gray-300 font-medium hover:bg-gray-600"
+                          id="demoModeBtn"
+                        >
+                          Demo Mode
+                        </button>
+                      </div>
+                  
+                      <p class="text-xs text-gray-500 text-center">
+                        Demo mode uses safe, prebuilt samples
+                      </p>
+                    </div> 
+                    <!-- Demo Threat Samples -->
+                    <section id="demoSamples" class="hidden max-w-xl mx-auto mt-6">
+                      <div class="analysis-card p-6 rounded-xl">
+                        <h3 class="text-lg font-semibold text-white mb-2">
+                          Demo Threat Samples
+                        </h3>
+                    
+                        <p class="text-sm text-gray-400 mb-4">
+                          Download and drag these files into the scanner
+                        </p>
+                    
+                        <div class="space-y-2">
+                          <a href="demo-samples/invoice_2025.pdf.exe" download
+                            class="block p-3 bg-black rounded border border-red-500/40 text-red-400 hover:bg-red-500/10">
+                            ⬇ invoice_2025.pdf.exe (extension spoofing)
+                          </a>
+                      
+                          <a href="demo-samples/keylogger-demo.py" download
+                            class="block p-3 bg-black rounded border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10">
+                            ⬇ keylogger-demo.py (keylogging patterns)
+                          </a>
+                      
+                          <a href="demo-samples/apk-demo.apk" download
+                            class="block p-3 bg-black rounded border border-purple-500/40 text-purple-400 hover:bg-purple-500/10">
+                            ⬇ apk-demo.apk (dangerous permissions)
+                          </a>
+                        </div>
+                      </div>
+                    </section>
                     <input type="file" id="fileInput" multiple class="hidden" accept="*/*">
                     
                     <!-- Scanning Progress -->
