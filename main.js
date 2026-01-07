@@ -437,8 +437,71 @@ class CyberGuardSpywareAnalyzer {
         });
         analysis.threatScore += 50;
       }
+      // JS-specific heuristic checks (static analysis)
+      const extensionLower = file.name.split(".").pop().toLowerCase();
+      const isJavaScript = extensionLower === "js";
+      const isHtmlOrCss = ["html", "htm", "css"].includes(extensionLower);
       // Scan for malware signatures
-      const content = isAPK ? "" : await this.readFileContent(file);
+      const deepScanEnabled = sessionStorage.getItem("deepScan") === "on";
+
+      const MAX_DEEP_SCAN_SIZE = 150 * 1024 * 1024; // 150 MB
+      if (deepScanEnabled && file.size > MAX_DEEP_SCAN_SIZE) {
+        showNotification(
+          "Large file detected. Deep scan may take longer or impact performance.",
+          "warning"
+        );
+      }
+
+      let deepScanSawSuspiciousJS = false;
+      let deepScanSawNetworkActivity = false;
+      let content = "";
+      let malwareFindings = [];
+
+      if (!isAPK && !deepScanEnabled) {
+        content = await this.readFileContent(file);
+      }
+      if (!isAPK && deepScanEnabled) {
+        analysis.riskExposure = "Full streamed deep scan performed";
+
+        await this.readFileContentDeep(file, (chunk) => {
+          const findings = this.scanForMalware(chunk);
+          analysis.findings.push(...findings);
+          malwareFindings.push(...findings);
+          if (findings.length > 0) {
+            analysis.malwareDetected = true;
+          }
+
+          if (this.detectKeylogger(chunk, file.name)) {
+            analysis.keyloggerDetected = true;
+            analysis.spywareProfile.surveillance = true;
+            analysis.spywareProfile.credentialHarvesting = true;
+            analysis.threatScore += 40;
+          }
+
+          // JS abuse patterns
+          if (isJavaScript) {
+            const jsDangerPatterns = [
+              /eval\s*\(/i,
+              /Function\s*\(/i,
+              /atob\s*\(/i,
+              /fromCharCode/i,
+              /document\.cookie/i,
+              /localStorage/i,
+              /fetch\s*\(/i,
+              /XMLHttpRequest/i,
+            ];
+
+            if (jsDangerPatterns.some((p) => p.test(chunk))) {
+              deepScanSawSuspiciousJS = true;
+            }
+          }
+
+          // Network / exfil indicators
+          if (/http|ftp|upload|post|socket/i.test(chunk)) {
+            deepScanSawNetworkActivity = true;
+          }
+        });
+      }
 
       if (isAPK && this.backendAvailable) {
         try {
@@ -502,14 +565,12 @@ class CyberGuardSpywareAnalyzer {
         }
       }
 
-      const malwareFindings = this.scanForMalware(content);
-      analysis.findings.push(...malwareFindings);
-      // JS-specific heuristic checks (static analysis)
-      const extensionLower = file.name.split(".").pop().toLowerCase();
-      const isJavaScript = extensionLower === "js";
-      const isHtmlOrCss = ["html", "htm", "css"].includes(extensionLower);
+      if (!deepScanEnabled) {
+        malwareFindings = this.scanForMalware(content);
+        analysis.findings.push(...malwareFindings);
+      }
 
-      if (isJavaScript) {
+      if (!deepScanEnabled && isJavaScript) {
         const jsDangerPatterns = [
           /eval\s*\(/i,
           /Function\s*\(/i,
@@ -530,6 +591,16 @@ class CyberGuardSpywareAnalyzer {
         }
       }
 
+      if (deepScanEnabled && isJavaScript && deepScanSawSuspiciousJS) {
+        analysis.findings.push({
+          type: "js_abuse",
+          severity: "medium",
+          description:
+            "Potentially risky JavaScript behavior detected (deep scan)",
+        });
+        analysis.threatScore += 10;
+      }
+
       // Calculate threat score from malware findings
       malwareFindings.forEach((finding) => {
         analysis.spywareProfile.persistence = true;
@@ -540,7 +611,7 @@ class CyberGuardSpywareAnalyzer {
       });
 
       // Detect keyloggers
-      if (this.detectKeylogger(content, file.name)) {
+      if (!deepScanEnabled && this.detectKeylogger(content, file.name)) {
         analysis.keyloggerDetected = true;
         analysis.spywareProfile.surveillance = true;
         analysis.spywareProfile.credentialHarvesting = true;
@@ -554,21 +625,26 @@ class CyberGuardSpywareAnalyzer {
 
       // Detect possible data exfiltration behavior
       // Applied ONLY to script and web files to avoid false positives
-      if (
-        (isJavaScript || isHtmlOrCss) &&
-        /http|ftp|upload|post|socket/i.test(content)
-      ) {
-        analysis.spywareProfile.dataExfiltration = true;
+      if (!deepScanEnabled && (isJavaScript || isHtmlOrCss)) {
+        if (/http|ftp|upload|post|socket/i.test(content)) {
+          analysis.spywareProfile.dataExfiltration = true;
 
-        if (isHtmlOrCss) {
-          // Normal browser network behavior
-          analysis.spywareProfile.networkContext = "web";
-          analysis.threatScore += 5;
-        } else if (isJavaScript) {
-          // JavaScript can be abused
-          analysis.spywareProfile.networkContext = "script";
-          analysis.threatScore += 12;
+          if (isHtmlOrCss) {
+            analysis.spywareProfile.networkContext = "web";
+            analysis.threatScore += 5;
+          } else if (isJavaScript) {
+            analysis.spywareProfile.networkContext = "script";
+            analysis.threatScore += 12;
+          }
         }
+      }
+
+      if (deepScanEnabled && deepScanSawNetworkActivity) {
+        analysis.spywareProfile.dataExfiltration = true;
+        analysis.spywareProfile.networkContext = isJavaScript
+          ? "script"
+          : "web";
+        analysis.threatScore += isJavaScript ? 12 : 5;
       }
 
       analysis.threatScore = Math.min(100, analysis.threatScore);
@@ -632,13 +708,44 @@ class CyberGuardSpywareAnalyzer {
   }
 
   async readFileContent(file) {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        resolve(e.target.result);
-      };
-      reader.readAsText(file.slice(0, 10000)); // Read first 10KB
-    });
+    const CHUNK_SIZE = 64 * 1024; // 64 KB
+    const samples = [];
+
+    const positions = [
+      0,
+      Math.max(0, Math.floor(file.size / 2) - CHUNK_SIZE / 2),
+      Math.max(0, file.size - CHUNK_SIZE),
+    ];
+
+    for (const pos of positions) {
+      const slice = file.slice(pos, pos + CHUNK_SIZE);
+      const text = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result || "");
+        reader.readAsText(slice);
+      });
+      samples.push(text);
+    }
+
+    return samples.join("\n");
+  }
+  async readFileContentDeep(file, onChunk) {
+    const CHUNK = 128 * 1024; // 128 KB
+    let offset = 0;
+
+    while (offset < file.size) {
+      const slice = file.slice(offset, offset + CHUNK);
+      const text = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result || "");
+        reader.readAsText(slice);
+      });
+
+      onChunk(text);
+      offset += CHUNK;
+
+      await new Promise((r) => setTimeout(r, 0));
+    }
   }
 
   detectFileType(header) {
@@ -1221,7 +1328,14 @@ function renderDynamicResults(results) {
                     </h3>
 
                     <p class="text-gray-400 text-sm">
-                        Threat Level: ${file.threatLevel.toUpperCase()}
+                      Threat Level: ${file.threatLevel.toUpperCase()}
+                      <span class="ml-2 text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
+                        ${
+                          sessionStorage.getItem("deepScan") === "on"
+                            ? "Deep Scan"
+                            : "Quick Scan"
+                        }
+                      </span>
                     </p>
                 </div>
 
@@ -1684,3 +1798,27 @@ function updateDemoUI() {
 }
 
 document.addEventListener("DOMContentLoaded", updateDemoUI);
+//deep scan thingy
+function toggleDeepScan(enabled) {
+  sessionStorage.setItem("deepScan", enabled ? "on" : "off");
+
+  const track = document.getElementById("deepScanTrack");
+  const thumb = document.getElementById("deepScanThumb");
+
+  if (enabled) {
+    track.classList.remove("bg-gray-700");
+    track.classList.add("bg-blue-600");
+    thumb.style.transform = "translateX(20px)";
+  } else {
+    track.classList.add("bg-gray-700");
+    track.classList.remove("bg-blue-600");
+    thumb.style.transform = "translateX(0)";
+  }
+}
+// restore toggle state
+document.addEventListener("DOMContentLoaded", () => {
+  const enabled = sessionStorage.getItem("deepScan") === "on";
+  const checkbox = document.getElementById("deepScanToggle");
+  if (checkbox) checkbox.checked = enabled;
+  toggleDeepScan(enabled);
+});
