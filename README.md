@@ -1,83 +1,48 @@
+# Cyberthon – ZeroRisk Sentinel
 
-# Cyberthon – File & APK Security Analyzer
+https://cyberthon-zeta.vercel.app/
 
-A lightweight **static security analysis tool** for files and Android APKs.
-Works locally. No execution. No installation of APKs.
+ZeroRisk Sentinel is an academic cybersecurity project developed for a college Cyberthon demonstration.  
+The project focuses on early-stage risk awareness by statically analyzing files, URLs, and mobile applications without executing them.
 
----
+## Overview
+Modern digital threats often overlap across files, links, and applications.  
+ZeroRisk Sentinel explores a unified approach to observing these risks within a single system, prioritizing understanding and interpretation over active blocking.
 
-## What This Project Does
+The project is designed strictly for learning, demonstration, and concept validation.
 
-* Scans files for security risks
-* Detects:
+## Key Features
+- Static file analysis using basic indicators
+- URL analysis based on common phishing characteristics
+- Mobile application (APK) metadata and permission observation
+- Clear, human-readable risk explanations
+- Demo-oriented workflow suitable for academic evaluation
 
-  * Malware-like patterns
-  * Keylogger indicators
-  * Extension spoofing
-  * Spyware-style behavior
-* Special handling for **Android APKs**
+## Analysis Modes
+- **Standard Scan**  
+  Performs basic rule-based checks to identify early warning signs.
 
-  * Analyzes permissions
-  * Flags dangerous permission combinations
-  * Explains *why* an APK is risky
+- **Deep Scan (Demo Mode)**  
+  An extended demonstration mode that applies additional indicators and analysis logic for presentation and learning purposes.
 
----
+## System Components
+- File analysis module
+- URL analysis module
+- Mobile application analysis module
+- Explanation layer for simplified output
+- Backend services hosted separately for demo use
 
-## Project Structure
+## Deployment
+- Frontend: Hosted for demonstration purposes
+- Backend: Hosted on Render (demo environment)
 
-```
-cyberthon/
-│
-├── backend/
-│   ├── server.py          # Flask backend for APK analysis
-│   ├── apk_analyzer.py    # APK permission logic
-│   └── requirements.txt
-│
-├── index.html             # Scanner UI
-├── results.html           # Results page
-├── main.js                # Core analysis logic
-└── README.md
-```
+## Project Status
+This project is a functional academic prototype created for a college cyberthon.  
+Some components and modes are intentionally simplified to emphasize concepts rather than production-grade security.
 
----
-
-## Setup & Run (Windows / Linux / macOS)
-
-### 1️⃣ Clone the repo
-
-```bash
-git clone https://github.com/shlokkokk/cyberthon.git
-cd cyberthon
-```
-
----
-
-### 2️⃣ Backend setup (APK analysis)
-
-#### Windows
-
-```powershell
-cd backend
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python server.py
-```
-
-#### Linux / macOS
-
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python server.py
-```
-
-Backend runs on:
-
-```
-http://localhost:5000
-```
+## Purpose
+- To understand core cybersecurity analysis concepts
+- To study static indicators of common digital threats
+- To demonstrate unified risk observation in an academic setting
 
 
