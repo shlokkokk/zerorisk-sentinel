@@ -1,83 +1,164 @@
+# ZeroRisk Sentinel 
 
-# Cyberthon – File & APK Security Analyzer
+ZeroRisk Sentinel is an academic cybersecurity project designed to demonstrate how static analysis, heuristic detection, and behavioral inference can be used to identify potential digital risks before execution.
 
-A lightweight **static security analysis tool** for files and Android APKs.
-Works locally. No execution. No installation of APKs.
+The project focuses on explainable, offline-first security analysis of files, URLs, and mobile applications for learning, demonstration, and academic evaluation purposes.
+
+---
+https://cyberthon-zeta.vercel.app/
+
+## Core Methodology
+
+ZeroRisk Sentinel follows a pre-execution security analysis approach built around:
+
+- Static inspection (no execution or sandboxing)
+- Rule-based and heuristic detection
+- Behavioral inference from observed indicators
+- Optional AI-assisted explanations for interpretability
+
+Detection decisions are explainable and based on observable signals rather than black-box classification.
 
 ---
 
-## What This Project Does
+## Analysis Scope & Limitations
 
-* Scans files for security risks
-* Detects:
-
-  * Malware-like patterns
-  * Keylogger indicators
-  * Extension spoofing
-  * Spyware-style behavior
-* Special handling for **Android APKs**
-
-  * Analyzes permissions
-  * Flags dangerous permission combinations
-  * Explains *why* an APK is risky
+- Performs **static analysis only**
+- No file execution, URL visiting, or OS interaction
+- No live browsing, sandboxing, or emulation
+- Detection results are **heuristic-based indicators**, not definitive proof
+- Does **not** replace antivirus or enterprise security solutions
+- Designed strictly for **learning, demonstration, and academic use**
 
 ---
 
-## Project Structure
+## Analysis Modes
 
-```
-cyberthon/
-│
-├── backend/
-│   ├── server.py          # Flask backend for APK analysis
-│   ├── apk_analyzer.py    # APK permission logic
-│   └── requirements.txt
-│
-├── index.html             # Scanner UI
-├── results.html           # Results page
-├── main.js                # Core analysis logic
-└── README.md
-```
+- **Quick Scan**  
+  Performs fast, strategic sampling of file content for rapid risk awareness.
+
+- **Deep Scan (Demo Mode)**  
+  Streams and inspects full file content in chunks for extended heuristic analysis.  
+  Intended for controlled demonstrations and evaluation scenarios.
+
+Scan mode selection is fully user-controlled.
 
 ---
 
-## Setup & Run (Windows / Linux / macOS)
+## File Security Analysis
 
-### 1️⃣ Clone the repo
+### Header & Signature Inspection
+- Magic byte verification
+- Extension mismatch detection
+- Spoofing and RTL override detection
 
-```bash
-git clone https://github.com/shlokkokk/cyberthon.git
-cd cyberthon
-```
+### Malware & Spyware Indicators
+- Suspicious code patterns
+- Command execution functions
+- Registry and system modification indicators
+- Network and data exfiltration patterns
+
+### Keylogger & Surveillance Detection
+- Keyboard hook indicators
+- API call pattern inspection
+- Stealth and monitoring behavior inference
+
+### Permission & Risk Inference
+- Privilege escalation indicators
+- Persistence behavior patterns
+- Risk scoring based on inferred intent
 
 ---
 
-### 2️⃣ Backend setup (APK analysis)
+## APK Static Analysis
 
-#### Windows
+Android application packages (APKs) are inspected using static metadata and permission analysis.
 
-```powershell
-cd backend
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python server.py
-```
+- Manifest extraction
+- High-risk permission detection
+- Permission combination risk scoring
+- No execution, emulation, or runtime monitoring
 
-#### Linux / macOS
+APK analysis is performed using a Python-based backend and remains strictly static.
 
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python server.py
-```
+---
 
-Backend runs on:
+## URL Security Analysis Module
 
-```
-http://localhost:5000
-```
+The URL analysis module applies weighted heuristic rules to identify potentially deceptive or suspicious links commonly used in phishing attacks.
+
+### Analysis Techniques
+- Protocol and HTTPS validation
+- IP-based and shortened URL detection
+- Suspicious domain and TLD patterns
+- Phishing keyword and impersonation indicators
+- Structural and query parameter inspection
+
+No live website access, redirection, DNS lookup, or reputation querying is performed.
+
+---
+
+## Heuristic & Behavioral Correlation
+
+Detected indicators are correlated using a rule-driven heuristic engine to infer overall threat confidence.
+
+- Multi-signal correlation
+- Weighted behavior scoring
+- Normalized confidence levels
+- Explainable decision logic
+
+An optional AI-assisted explanation layer converts final results into human-readable security insights.  
+The AI component does **not** influence detection logic or scoring.
+
+---
+
+## System Workflow
+
+1. User submits a file or URL
+2. Static data is extracted without execution
+3. Heuristic rules and indicators are applied
+4. Risk scores and threat levels are calculated
+5. Findings are correlated into a behavior profile
+6. Results are presented with explanations
+
+---
+
+## Architecture Philosophy
+
+ZeroRisk Sentinel is designed as a hybrid-ready system.
+
+- Client-side analysis remains the primary and fail-safe layer
+- Offline-first with zero data exposure
+- Optional backend services enhance depth without replacing local analysis
+- AI explanations remain optional and non-blocking
+
+---
+
+## Deployment
+
+- Frontend: Demo-hosted for academic evaluation
+- Backend: Hosted on Render (demo environment only)
+
+---
+
+## Security & Privacy
+
+- All analysis is performed locally
+- No files or URLs are permanently stored
+- No tracking, telemetry, or background data collection
+- Session-based, temporary analysis only
+
+---
+
+## Project Purpose
+
+- Study static and heuristic cybersecurity techniques
+- Understand spyware and phishing indicators
+- Demonstrate explainable security analysis
+- Support academic learning and cyberthon evaluation
+
+---
+
+© 2025 ZeroRisk Sentinel  
+Academic cybersecurity analysis project
 
 
