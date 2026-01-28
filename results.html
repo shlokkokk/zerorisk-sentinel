@@ -277,6 +277,15 @@
       .apk-card .keylogger-section {
         display: none;
       }
+      .report-btn-container:hover .report-btn-glow { opacity: 1; animation: glowPulse 2s infinite; }
+@keyframes glowPulse { 0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } }
+.report-btn-premium:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 8px 40px rgba(0,212,255,0.5), 0 0 0 1px rgba(0,212,255,0.4), inset 0 1px 0 rgba(255,255,255,0.3); }
+.report-btn-premium:active { transform: translateY(-1px) scale(0.98); }
+#reportModal.active { opacity: 1; visibility: visible; }
+#reportModal.active > div { transform: scale(1); opacity: 1; }
+.format-opt:hover { border-color: rgba(0,212,255,0.5); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,212,255,0.2); }
+.format-opt.selected { border-color: #00d4ff; background: rgba(0,212,255,0.08); box-shadow: 0 0 30px rgba(0,212,255,0.3); }
+@media (max-width: 640px) { .format-opt { grid-column: 1 / -1; } }
     </style>
   </head>
   <body>
@@ -441,18 +450,48 @@
           </div>
 
           <!-- Batch Actions -->
-          <div class="mt-12 text-center">
-            <h3 class="text-xl font-semibold mb-6 text-white">Batch Actions</h3>
-            <div class="flex flex-wrap justify-center gap-4">
-              <button class="action-button" onclick="exportAllReports()">
-                Export All Reports
-              </button>
-              <button class="action-button" onclick="quarantineAllThreats()">
-                Quarantine All Threats
-              </button>
-              <button class="action-button" onclick="generateSummaryReport()">
-                Generate Summary Report
-              </button>
+<div class="mt-16 text-center">
+  <div class="report-btn-container" style="position: relative; display: inline-block;">
+    <div class="report-btn-glow" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 120%; height: 140%; background: radial-gradient(ellipse, rgba(0, 212, 255, 0.4) 0%, transparent 70%); filter: blur(20px); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; z-index: -1;"></div>
+    <button class="report-btn-premium" onclick="openReportModal()" style="position: relative; background: linear-gradient(135deg, #00d4ff 0%, #0099cc 50%, #0077aa 100%); color: #fff; border: none; padding: 16px 48px; border-radius: 12px; font-size: 16px; font-weight: 600; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; cursor: pointer; overflow: hidden; transition: all 0.4s ease; box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3), 0 0 0 1px rgba(0, 212, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);">
+      <span style="display: inline-block; margin-right: 12px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+      </span>
+      Generate Summary Report
+    </button>
+  </div>
+</div>
+
+          <!-- Report Format Modal -->
+          <div id="reportModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.4s ease;">
+            <div style="background: linear-gradient(145deg, #0f0f0f, #1a1a1a); border: 1px solid rgba(0,212,255,0.4); border-radius: 20px; padding: 48px; max-width: 520px; width: 90%; position: relative; transform: scale(0.9); opacity: 0; transition: all 0.5s ease;">
+              <button onclick="closeReportModal()" style="position: absolute; top: 20px; right: 20px; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #888; cursor: pointer; font-size: 18px;">&times;</button>
+              <div style="text-align: center; margin-bottom: 36px;">
+                <h2 style="font-family: 'Orbitron', sans-serif; font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 8px;">Generate Summary Report</h2>
+                <p style="color: #888; font-size: 14px;">Select your preferred export format</p>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 32px;">
+                <div class="format-opt" onclick="selectFormat('json')" id="fmt-json" style="background: rgba(255,255,255,0.03); border: 2px solid rgba(0,212,255,0.2); border-radius: 16px; padding: 28px 20px; cursor: pointer; text-align: center; transition: all 0.35s ease;">
+                  <div style="width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; background: linear-gradient(135deg, #00ff88, #00cc6a); color: #000;">JSON</div>
+                  <div style="font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 6px;">JSON Format</div>
+                  <div style="font-size: 12px; color: #888;">Machine-readable data</div>
+                </div>
+                <div class="format-opt" onclick="selectFormat('pdf')" id="fmt-pdf" style="background: rgba(255,255,255,0.03); border: 2px solid rgba(0,212,255,0.2); border-radius: 16px; padding: 28px 20px; cursor: pointer; text-align: center; transition: all 0.35s ease;">
+                  <div style="width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; background: linear-gradient(135deg, #ff6b35, #cc5529); color: #fff;">PDF</div>
+                  <div style="font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 6px;">PDF Document</div>
+                  <div style="font-size: 12px; color: #888;">Professional report</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 16px;">
+                <button onclick="closeReportModal()" style="flex: 1; padding: 14px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; background: rgba(255,255,255,0.05); color: #888; border: 1px solid rgba(255,255,255,0.1);">Cancel</button>
+                <button id="genReportBtn" onclick="generateSelectedReport()" disabled style="flex: 1; padding: 14px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; background: linear-gradient(135deg, #00d4ff, #0099cc); color: #fff; border: none; opacity: 0.5;">Generate Report</button>
+              </div>
             </div>
           </div>
         </div>
@@ -892,6 +931,7 @@
 
       // Initialize everything when DOM is loaded
       document.addEventListener("DOMContentLoaded", () => {
+        
         startMatrixBackground();
         initializeCharts();
         const fileData = JSON.parse(
