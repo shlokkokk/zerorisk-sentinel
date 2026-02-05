@@ -1,3 +1,53 @@
+function generateRiskExplanation(analysis) {
+  const level = analysis.threatLevel;
+  const score = analysis.threatScore;
+  const p = analysis.spywareProfile;
+  const findings = analysis.findings;
+
+  const criticalCount = findings.filter(f => f.severity === 'critical').length;
+  const highCount = findings.filter(f => f.severity === 'high').length;
+  const mediumCount = findings.filter(f => f.severity === 'medium').length;
+
+  if (level === 'critical') {
+    if (p.surveillance && p.credentialHarvesting) {
+      return `CRITICAL: Active surveillance mechanisms with ${criticalCount} critical indicators. Keystroke monitoring and credential harvesting capabilities detected.`;
+    }
+    if (criticalCount > 0) {
+      return `CRITICAL: Malicious patterns confirmed with ${criticalCount} critical threat indicators. Immediate isolation recommended.`;
+    }
+    return `CRITICAL: Aggregate threat score ${score}/100 exceeds safety thresholds. Multiple coordinated suspicious behaviors detected.`;
+  }
+
+  if (level === 'high') {
+    if (p.surveillance) {
+      return `HIGH RISK: Surveillance indicators present. Keylogger-related patterns and input capture mechanisms identified.`;
+    }
+    if (p.stealth) {
+      return `HIGH RISK: Deception techniques identified. File extension mismatch indicates possible spoofing attempt.`;
+    }
+    if (highCount > 0) {
+      return `HIGH RISK: ${highCount} high-confidence threat signals detected. Code execution capabilities present.`;
+    }
+    return `HIGH RISK: Combined threat indicators exceed safety threshold (score: ${score}/100).`;
+  }
+
+  if (level === 'medium') {
+    if (mediumCount > 0) {
+      return `MODERATE RISK: ${mediumCount} medium-confidence indicators detected. Some patterns warrant additional scrutiny.`;
+    }
+    if (p.dataExfiltration) {
+      return `MODERATE RISK: Network communication functions detected. External connectivity capability identified.`;
+    }
+    return `MODERATE RISK: Low-confidence threat indicators (score: ${score}/100).`;
+  }
+
+  if (level === 'low') {
+    return `LOW RISK: Minor anomalies detected. File appears largely safe with minimal irregularities.`;
+  }
+
+  return `SAFE: No threats detected. Standard security posture maintained.`;
+}
+
 class CyberGuardSpywareAnalyzer {
   constructor() {
     this.files = [];
@@ -689,7 +739,8 @@ class CyberGuardSpywareAnalyzer {
       });
     }
 
-    return analysis;
+    analysis.riskExposure = generateRiskExplanation(analysis);
+  return analysis;
   }
 
   async readFileHeader(file) {
@@ -1859,147 +1910,4 @@ document.addEventListener("DOMContentLoaded", () => {
   const checkbox = document.getElementById("deepScanToggle");
   if (checkbox) checkbox.checked = enabled;
   toggleDeepScan(enabled);
-});
-let selectedFormat = null;
-
-function openReportModal() {
-  document.getElementById('reportModal').classList.add('active');
-  selectedFormat = null;
-  document.querySelectorAll('.format-opt').forEach(el => el.classList.remove('selected'));
-  document.getElementById('genReportBtn').disabled = true;
-  document.getElementById('genReportBtn').style.opacity = '0.5';
-}
-
-function closeReportModal() {
-  document.getElementById('reportModal').classList.remove('active');
-}
-
-function selectFormat(fmt) {
-  selectedFormat = fmt;
-  document.querySelectorAll('.format-opt').forEach(el => el.classList.remove('selected'));
-  document.getElementById('fmt-' + fmt).classList.add('selected');
-  document.getElementById('genReportBtn').disabled = false;
-  document.getElementById('genReportBtn').style.opacity = '1';
-}
-
-function generateSelectedReport() {
-  if (!selectedFormat) return;
-  closeReportModal();
-  
-  // Get data with null safety
-  const fileResults = JSON.parse(sessionStorage.getItem("analysisResults") || "[]") || [];
-  const urlResults = JSON.parse(sessionStorage.getItem("urlResults") || "[]") || [];
-  
-  // Calculate stats safely
-  const safeCount = fileResults.filter(r => r && r.threatLevel === 'safe').length;
-  const warnCount = fileResults.filter(r => r && (r.threatLevel === 'low' || r.threatLevel === 'medium')).length;
-  const critCount = fileResults.filter(r => r && (r.threatLevel === 'high' || r.threatLevel === 'critical')).length;
-  
-  if (selectedFormat === 'json') {
-    const report = {
-      generatedAt: new Date().toISOString(),
-      tool: "ZeroRisk Sentinel",
-      summary: {
-        filesAnalyzed: fileResults.length,
-        urlsAnalyzed: urlResults.length,
-        safeFiles: safeCount,
-        warnings: warnCount,
-        criticalThreats: critCount
-      },
-      fileAnalysis: fileResults,
-      urlAnalysis: urlResults
-    };
-    const blob = new Blob([JSON.stringify(report, null, 2)], {type: 'application/json'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `zerorisk-report-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    showNotification("JSON report downloaded", "success");
-  } else {
-    // PDF/HTML generation
-    const totalFiles = fileResults.length;
-    const totalUrls = urlResults.length;
-    
-    const fileRows = fileResults.map(f => `
-      <tr style="border-bottom: 1px solid #333;">
-        <td style="padding: 12px; color: #fff;">${f.name || 'Unknown'}</td>
-        <td style="padding: 12px; color: ${f.threatLevel === 'safe' ? '#00c853' : f.threatLevel === 'high' || f.threatLevel === 'critical' ? '#dc143c' : '#ff9100'}; text-transform: uppercase;">${f.threatLevel || 'unknown'}</td>
-        <td style="padding: 12px; color: #888;">${f.threatScore || 0}/100</td>
-      </tr>
-    `).join('');
-    
-    const urlRows = urlResults.map(u => `
-      <tr style="border-bottom: 1px solid #333;">
-        <td style="padding: 12px; color: #fff;">${u.url || 'Unknown'}</td>
-        <td style="padding: 12px; color: ${u.threatLevel === 'safe' ? '#00c853' : u.threatLevel === 'high' || u.threatLevel === 'critical' ? '#dc143c' : '#ff9100'}; text-transform: uppercase;">${u.threatLevel || 'unknown'}</td>
-        <td style="padding: 12px; color: #888;">${u.threatScore || 0}/100</td>
-      </tr>
-    `).join('');
-    
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <title>ZeroRisk Report</title>
-  <style>
-    body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #fff; padding: 40px; }
-    .header { text-align: center; border-bottom: 3px solid #00d4ff; padding-bottom: 30px; margin-bottom: 40px; }
-    .header h1 { font-family: 'Orbitron', sans-serif; font-size: 32px; margin: 0; }
-    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 40px; }
-    .card { background: #1a1a1a; border-radius: 12px; padding: 24px; text-align: center; border: 1px solid #333; }
-    .card .val { font-size: 28px; font-weight: 700; }
-    .safe { color: #00c853; }
-    .warn { color: #ff9100; }
-    .crit { color: #dc143c; }
-    .blue { color: #00d4ff; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th { text-align: left; padding: 12px; color: #00d4ff; border-bottom: 2px solid #00d4ff; }
-    h2 { color: #00d4ff; margin-top: 40px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>ZeroRisk Sentinel</h1>
-    <p>Generated: ${new Date().toLocaleString()}</p>
-  </div>
-  
-  <div class="summary">
-    <div class="card"><div class="val blue">${totalFiles}</div><div>Files</div></div>
-    <div class="card"><div class="val safe">${safeCount}</div><div>Safe</div></div>
-    <div class="card"><div class="val warn">${warnCount}</div><div>Warnings</div></div>
-    <div class="card"><div class="val crit">${critCount}</div><div>Critical</div></div>
-  </div>
-  
-  ${totalFiles > 0 ? `
-  <h2>File Analysis</h2>
-  <table>
-    <thead><tr><th>File Name</th><th>Threat Level</th><th>Score</th></tr></thead>
-    <tbody>${fileRows}</tbody>
-  </table>` : ''}
-  
-  ${totalUrls > 0 ? `
-  <h2>URL Analysis</h2>
-  <table>
-    <thead><tr><th>URL</th><th>Threat Level</th><th>Score</th></tr></thead>
-    <tbody>${urlRows}</tbody>
-  </table>` : ''}
-  
-  ${totalFiles === 0 && totalUrls === 0 ? '<p style="text-align: center; color: #666;">No analysis data available</p>' : ''}
-</body>
-</html>`;
-    
-    const blob = new Blob([html], {type: 'text/html'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `zerorisk-report-${new Date().toISOString().slice(0,10)}.html`;
-    a.click();
-    showNotification("Report downloaded (open in browser to print as PDF)", "success");
-  }
-}
-
-// Close modal on outside click or Escape
-document.addEventListener('click', function(e) {
-  if (e.target.id === 'reportModal') closeReportModal();
-});
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeReportModal();
 });

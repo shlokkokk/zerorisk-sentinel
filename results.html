@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -286,7 +287,8 @@
     opacity: 0.6;
   }
     </style>
-  </head>
+  <base target="_blank">
+</head>
   <body>
     <!-- Matrix Background Canvas -->
     <canvas id="matrixCanvas" class="matrix-bg"></canvas>
@@ -455,45 +457,11 @@
     <!-- Glow effect -->
     <div class="report-btn-glow" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 120%; height: 140%; background: radial-gradient(ellipse, rgba(0, 212, 255, 0.4) 0%, transparent 70%); filter: blur(20px); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; z-index: -1;"></div>
     
-    <!-- Tooltip -->
-    <div class="coming-soon-tooltip" style="
-      position: absolute;
-      bottom: calc(100% + 12px);
-      left: 50%;
-      transform: translateX(-50%) scale(0.8);
-      background: rgba(15, 23, 42, 0.95);
-      border: 1px solid rgba(0, 212, 255, 0.3);
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 12px;
-      color: #00d4ff;
-      font-family: 'Orbitron', sans-serif;
-      white-space: nowrap;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.3s ease;
-      pointer-events: none;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-      z-index: 10;
-    ">
-      <span style="display: inline-block; margin-right: 6px;">🚧</span>
-      Under Construction
-      <!-- Arrow -->
-      <div style="
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        border: 6px solid transparent;
-        border-top-color: rgba(0, 212, 255, 0.3);
-      "></div>
-    </div>
-
-    <!-- Disabled Button -->
-    <button class="report-btn-premium" disabled style="
+    <!-- Enabled Button -->
+    <button class="report-btn-premium" onclick="openReportModal()" style="
       position: relative;
-      background: linear-gradient(135deg, #334155 0%, #1e293b 50%, #0f172a 100%);
-      color: #64748b;
+      background: linear-gradient(135deg, #00d4ff 0%, #0099cc 50%, #0077aa 100%);
+      color: #fff;
       border: none;
       padding: 16px 48px;
       border-radius: 12px;
@@ -501,12 +469,12 @@
       font-weight: 600;
       font-family: 'Orbitron', sans-serif;
       letter-spacing: 1px;
-      cursor: not-allowed;
+      cursor: pointer;
       overflow: hidden;
       transition: all 0.4s ease;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
     ">
-      <span style="display: inline-block; margin-right: 12px; opacity: 0.5;">
+      <span style="display: inline-block; margin-right: 12px; opacity: 1;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
           <polyline points="14 2 14 8 20 8"></polyline>
@@ -1167,6 +1135,8 @@
       });
     </script>
     <script src="main.js"></script>
+    <script src="generateReport.js"></script>
+    
     <div
       id="swipeHint"
       class="fixed bottom-4 left-1/2 -translate-x-1/2 text-xs text-gray-400 opacity-70 md:hidden select-none pointer-events-none"
