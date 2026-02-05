@@ -3,51 +3,220 @@ function generateRiskExplanation(analysis) {
   const score = analysis.threatScore;
   const p = analysis.spywareProfile;
   const findings = analysis.findings;
+  const vt = analysis.virustotal;
+  const entropy = analysis.entropy;
 
   const criticalCount = findings.filter(f => f.severity === 'critical').length;
   const highCount = findings.filter(f => f.severity === 'high').length;
   const mediumCount = findings.filter(f => f.severity === 'medium').length;
+  
+  // Check for specific merged indicators
+  const hasVirusTotal = vt && vt.found && vt.malicious > 0;
+  const vtCount = hasVirusTotal ? vt.malicious : 0;
+  const hasHighEntropy = entropy > 7.5;
+  const hasYARA = findings.some(f => f.type === 'yara_match' || f.rule);
+  const yaraRules = findings.filter(f => f.type === 'yara_match' || f.rule).map(f => f.rule || f.type);
+  const hasKeyloggerYARA = yaraRules.some(r => r && r.toLowerCase().includes('keylogger'));
 
+  // CRITICAL LEVEL
   if (level === 'critical') {
+    if (hasVirusTotal && vtCount >= 5) {
+      return `CRITICAL: ${vtCount} antivirus engines confirm this is known malware. Immediate quarantine recommended.`;
+    }
+    if (hasVirusTotal) {
+      return `CRITICAL: VirusTotal flagged by ${vtCount} engines + ${criticalCount} critical local indicators. Verified threat.`;
+    }
     if (p.surveillance && p.credentialHarvesting) {
-      return `CRITICAL: Active surveillance mechanisms with ${criticalCount} critical indicators. Keystroke monitoring and credential harvesting capabilities detected.`;
+      return `CRITICAL: Active surveillance with credential harvesting. ${criticalCount} critical indicators detected.`;
+    }
+    if (hasKeyloggerYARA) {
+      return `CRITICAL: Keylogger confirmed by YARA rule + ${criticalCount} critical indicators. Input capture capability verified.`;
     }
     if (criticalCount > 0) {
-      return `CRITICAL: Malicious patterns confirmed with ${criticalCount} critical threat indicators. Immediate isolation recommended.`;
+      return `CRITICAL: ${criticalCount} critical threat indicators. File exhibits malicious behavior patterns.`;
     }
-    return `CRITICAL: Aggregate threat score ${score}/100 exceeds safety thresholds. Multiple coordinated suspicious behaviors detected.`;
+    return `CRITICAL: Threat score ${score}/100 exceeds safety thresholds. Multiple coordinated suspicious behaviors.`;
   }
 
+  // HIGH LEVEL
   if (level === 'high') {
+    if (hasVirusTotal) {
+      return `HIGH RISK: VirusTotal shows ${vtCount} detections. Known suspicious file with confirmed indicators.`;
+    }
+    if (hasHighEntropy && hasYARA) {
+      return `HIGH RISK: Packed/encrypted file with ${highCount} YARA matches. Attempting to evade detection.`;
+    }
     if (p.surveillance) {
-      return `HIGH RISK: Surveillance indicators present. Keylogger-related patterns and input capture mechanisms identified.`;
+      return `HIGH RISK: Surveillance indicators present. Monitoring capability detected in code.`;
     }
     if (p.stealth) {
-      return `HIGH RISK: Deception techniques identified. File extension mismatch indicates possible spoofing attempt.`;
+      return `HIGH RISK: Deception techniques (extension spoofing). Trying to appear as different file type.`;
+    }
+    if (hasYARA) {
+      return `HIGH RISK: ${yaraRules.length} YARA rule(s) matched: ${yaraRules.slice(0, 2).join(', ')}. Known malware signatures.`;
     }
     if (highCount > 0) {
-      return `HIGH RISK: ${highCount} high-confidence threat signals detected. Code execution capabilities present.`;
+      return `HIGH RISK: ${highCount} high-confidence threat signals. Code execution capabilities present.`;
     }
     return `HIGH RISK: Combined threat indicators exceed safety threshold (score: ${score}/100).`;
   }
 
+  // MEDIUM LEVEL
   if (level === 'medium') {
+    if (hasHighEntropy) {
+      return `MODERATE RISK: High entropy (${entropy}/8) suggests packing/encryption. Possibly hiding code.`;
+    }
+    if (hasYARA) {
+      return `MODERATE RISK: YARA match: ${yaraRules[0]}. Known suspicious pattern detected.`;
+    }
     if (mediumCount > 0) {
-      return `MODERATE RISK: ${mediumCount} medium-confidence indicators detected. Some patterns warrant additional scrutiny.`;
+      return `MODERATE RISK: ${mediumCount} suspicious indicators. Some patterns warrant additional scrutiny.`;
     }
     if (p.dataExfiltration) {
-      return `MODERATE RISK: Network communication functions detected. External connectivity capability identified.`;
+      return `MODERATE RISK: Network communication capability. Could transmit data externally.`;
     }
     return `MODERATE RISK: Low-confidence threat indicators (score: ${score}/100).`;
   }
 
+  // LOW LEVEL - NOW INCLUDES YARA INFO!
   if (level === 'low') {
+    if (hasKeyloggerYARA) {
+      return `LOW RISK: Keylogger pattern detected (${yaraRules[0]}) but low confidence score. Monitor file behavior closely.`;
+    }
+    if (hasYARA) {
+      return `LOW RISK: YARA matched but low severity. Pattern: ${yaraRules[0]}. Monitor for changes.`;
+    }
+    if (entropy > 6.5) {
+      return `LOW RISK: Slightly elevated entropy (${entropy}). Minor compression detected.`;
+    }
     return `LOW RISK: Minor anomalies detected. File appears largely safe with minimal irregularities.`;
   }
 
-  return `SAFE: No threats detected. Standard security posture maintained.`;
+  // SAFE
+  return `SAFE: No threats detected. Clean file hash, normal entropy, no suspicious patterns.`;
 }
+const BACKEND_URL = 'https://cyberthon-backend.onrender.com';
+class RealFileScanner {
+  constructor() {
+    this.backendUrl = BACKEND_URL;
+  }
 
+  async scanFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`${this.backendUrl}/api/scan-file`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Scan failed');
+      }
+
+      return this.transformBackendResult(result.data, file);
+
+    } catch (error) {
+      console.error('[SCAN ERROR]', error);
+      // Fallback to your existing local analysis
+      return null; // Return null so your existing code handles it
+    }
+  }
+
+  transformBackendResult(backendData, originalFile) {
+    const findings = backendData.findings || [];
+    
+    const formattedFindings = findings.map(f => ({
+      type: f.type,
+      severity: f.severity,
+      description: f.description || `YARA rule: ${f.rule}`,
+      rule: f.rule || null,
+      tags: f.tags || []
+    }));
+
+    if (backendData.entropy > 7.5) {
+      formattedFindings.push({
+        type: 'high_entropy',
+        severity: 'medium',
+        description: `High entropy detected (${backendData.entropy}/8.0) - file may be packed or encrypted`
+      });
+    }
+
+    if (backendData.virustotal && backendData.virustotal.found) {
+      const vt = backendData.virustotal;
+      formattedFindings.unshift({
+        type: 'virustotal',
+        severity: vt.malicious >= 5 ? 'critical' : vt.malicious >= 2 ? 'high' : 'medium',
+        description: `VirusTotal: ${vt.malicious}/${vt.total} engines detected this file as malicious`
+      });
+    }
+
+    return {
+      name: backendData.filename,
+      size: backendData.size,
+      type: originalFile.type,
+      lastModified: originalFile.lastModified,
+      isAPK: originalFile.name.toLowerCase().endsWith('.apk'),
+      threatLevel: backendData.threat_level,
+      threatScore: backendData.threat_score,
+      findings: formattedFindings,
+      fileHeader: backendData.hashes?.sha256?.substring(0, 16) || 'N/A',
+      extensionMismatch: findings.some(f => f.type === 'extension_mismatch'),
+      riskExposure: this.generateRiskExplanation(backendData),
+      malwareDetected: backendData.threat_level === 'critical' || backendData.threat_level === 'high',
+      keyloggerDetected: findings.some(f => f.rule && f.rule.toLowerCase().includes('keylogger')),
+      hashes: backendData.hashes,
+      entropy: backendData.entropy,
+      fileType: backendData.file_type,
+      virustotal: backendData.virustotal,
+      spywareProfile: {
+        surveillance: findings.some(f => f.rule && f.rule.toLowerCase().includes('keylogger')),
+        dataExfiltration: findings.some(f => f.description && f.description.toLowerCase().includes('network')),
+        persistence: findings.some(f => f.rule && f.rule.toLowerCase().includes('persistence')),
+        stealth: backendData.entropy > 7.5 || findings.some(f => f.type === 'extension_mismatch'),
+        credentialHarvesting: findings.some(f => f.rule && f.rule.toLowerCase().includes('keylogger')),
+        confidenceScore: backendData.threat_score
+      }
+    };
+  }
+
+  generateRiskExplanation(backendData) {
+    const findings = backendData.findings || [];
+    const vt = backendData.virustotal;
+    
+    let explanations = [];
+
+    const yaraMatches = findings.filter(f => f.type === 'yara_match');
+    if (yaraMatches.length > 0) {
+      explanations.push(`${yaraMatches.length} YARA rule(s) matched`);
+    }
+
+    if (vt && vt.found && vt.malicious > 0) {
+      explanations.push(`${vt.malicious} antivirus engines flagged this file`);
+    }
+
+    if (backendData.entropy > 7.5) {
+      explanations.push('High entropy suggests packing/encryption');
+    }
+
+    if (findings.some(f => f.type === 'extension_mismatch')) {
+      explanations.push('File extension does not match actual file type');
+    }
+
+    if (explanations.length === 0) {
+      return 'No significant threats detected';
+    }
+
+    return explanations.join('; ');
+  }
+}
 class CyberGuardSpywareAnalyzer {
   constructor() {
     this.files = [];
@@ -56,6 +225,7 @@ class CyberGuardSpywareAnalyzer {
     this.analysisResults = new Map();
     this.signatureDatabase = this.initializeSignatureDatabase();
     this.fileHeaders = this.initializeFileHeaders();
+    this.realScanner = new RealFileScanner();
     this.init();
   }
 
@@ -67,16 +237,34 @@ class CyberGuardSpywareAnalyzer {
   }
   async checkBackendStatus() {
     try {
-      const res = await fetch(
-        "https://cyberthon-backend.onrender.com/api/status"
-      );
+      const res = await fetch("https://cyberthon-backend.onrender.com/api/status");
       if (res.ok) {
+        const data = await res.json();
         this.backendAvailable = true;
-        console.log("[BACKEND] APK analyzer online");
+
+        // Update UI status
+        const statusDot = document.getElementById('backendStatusDot');
+        const statusText = document.getElementById('backendStatusText');
+
+        if (data.file_scanner?.available) {
+          if (data.file_scanner?.yara_loaded) {
+            if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-green-400';
+            if (statusText) statusText.textContent = 'Backend Active (YARA)';
+          } else {
+            if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-yellow-400';
+            if (statusText) statusText.textContent = 'Backend Online';
+          }
+        }
+
+        console.log("[BACKEND] File scanner online", data);
       }
     } catch (e) {
       this.backendAvailable = false;
-      console.warn("[BACKEND] APK analyzer offline");
+      const statusDot = document.getElementById('backendStatusDot');
+      const statusText = document.getElementById('backendStatusText');
+      if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-red-400';
+      if (statusText) statusText.textContent = 'Backend Offline (Local Mode)';
+      console.warn("[BACKEND] File scanner offline");
     }
   }
 
@@ -362,22 +550,34 @@ class CyberGuardSpywareAnalyzer {
     const progress = ((index + 1) / total) * 100;
 
     // Update progress
-    document.getElementById("progressText").textContent = `${Math.round(
-      progress
-    )}%`;
+    document.getElementById("progressText").textContent = `${Math.round(progress)}%`;
     document.getElementById("progressFill").style.width = `${progress}%`;
-    document.getElementById(
-      "currentFile"
-    ).textContent = `Analyzing: ${file.name}`;
+    document.getElementById("currentFile").textContent = `Analyzing: ${file.name}`;
 
     // Log analysis start
-    this.logToTerminal(
-      `[ANALYZING] ${file.name} (${this.formatBytes(file.size)})`,
-      "blue"
-    );
+    this.logToTerminal(`[ANALYZING] ${file.name} (${this.formatBytes(file.size)})`, "blue");
 
-    // Perform analysis
-    const analysis = await this.performFileAnalysis(file);
+  let analysis;
+
+  // CHECK IF IT'S AN APK use old dedicated endpoint for APKs
+  const isAPK = file.name.toLowerCase().endsWith('.apk');
+  
+  if (isAPK) {
+    // APK Use the old performFileAnalysis which calls /api/analyze-apk
+    this.logToTerminal(`[APK] Using specialized Android analysis for ${file.name}`, "blue");
+    analysis = await this.performFileAnalysis(file);
+  } else {
+    // NON-APK: Try new backend first, fallback to local
+    analysis = await this.realScanner.scanFile(file);
+
+    // If backend failed or returned null, fall back to local analysis
+    if (!analysis) {
+      this.logToTerminal(`[FALLBACK] Using local analysis for ${file.name}`, "yellow");
+      analysis = await this.performFileAnalysis(file);
+    } else {
+      this.logToTerminal(`[BACKEND] Real scan complete for ${file.name}`, "green");
+      }
+    }
     this.analysisResults.set(file.name, analysis);
 
     // Log results
@@ -570,7 +770,7 @@ class CyberGuardSpywareAnalyzer {
 
           if (backend.success) {
             const level = backend.data.risk_level || "safe";
-
+          
             analysis.apkAnalysis = {
               backendAvailable: true,
               riskScore: backend.data.risk_score ?? 0,
@@ -580,10 +780,15 @@ class CyberGuardSpywareAnalyzer {
                 backend.data.explanation || "No explanation available",
               apkMetadata: backend.data.apk_metadata || {},
             };
-
+          
             analysis.threatScore = backend.data.risk_score;
             analysis.threatLevel = backend.data.risk_level;
-
+          
+            analysis.hashes = backend.data.hashes || {};
+            analysis.entropy = backend.data.entropy || 0;
+            analysis.virustotal = backend.data.virustotal || null;
+            analysis.file_type = backend.data.file_type || {};
+          
             analysis.spywareProfile = {
               surveillance: false,
               dataExfiltration: false,
@@ -594,8 +799,8 @@ class CyberGuardSpywareAnalyzer {
               networkContext: "apk",
             };
             analysis.keyloggerDetected = false;
-            analysis.riskExposure = "Permission-based Android analysis";
-
+            analysis.riskExposure = backend.data.explanation || "Permission-based Android analysis";
+          
             analysis.findings = [
               {
                 type: "apk_backend",
@@ -603,8 +808,10 @@ class CyberGuardSpywareAnalyzer {
                 description:
                   "Deep APK permission analysis completed by Python backend",
               },
-            ];
 
+              ...(backend.data.findings || [])
+            ];
+          
             return analysis;
           }
         } catch (e) {
@@ -1283,10 +1490,10 @@ function renderDynamicResults(results) {
     const aiId = `aiExplain_${index}`;
     if (isAPK) {
       const apkSectionId = `apkDetails_${index}`;
-
+    
       const card = document.createElement("div");
       card.className = "analysis-card rounded-xl p-6 border border-blue-500/40";
-
+    
       card.innerHTML = `
         <div class="expandable-section flex justify-between items-center p-4 rounded-lg"
              onclick="toggleSection('${apkSectionId}')">
@@ -1298,16 +1505,17 @@ function renderDynamicResults(results) {
               Android APK Security Analysis
             </p>
           </div>
-
+    
           <span class="threat-badge threat-${
             file.apkAnalysis?.riskLevel || "unknown"
           }">
             ${(file.apkAnalysis?.riskLevel || "unknown").toUpperCase()}
           </span>
         </div>
-
+        
         <div id="${apkSectionId}" class="hidden mt-6 space-y-6">
-
+        
+          <!-- BASIC INFO -->
           <div class="grid grid-cols-2 gap-4 text-sm">
             <div>
               Risk Score:
@@ -1322,16 +1530,70 @@ function renderDynamicResults(results) {
               </span>
             </div>
           </div>
-
+        
+          <!-- SHOW HASHES IF AVAILABLE (MERGED FROM FILE SCANNER) -->
+          ${file.hashes && Object.keys(file.hashes).length > 0 ? `
+          <div class="mt-4 p-3 bg-black rounded border border-gray-700">
+            <h5 class="text-gray-400 text-xs mb-2">FILE HASHES</h5>
+            <div class="font-mono text-xs space-y-1 text-gray-300">
+              <div>MD5: ${file.hashes.md5 || 'N/A'}</div>
+              <div>SHA1: ${file.hashes.sha1 || 'N/A'}</div>
+              <div>SHA256: ${file.hashes.sha256 || 'N/A'}</div>
+            </div>
+          </div>
+          ` : ''}
+          
+          <!-- SHOW ENTROPY IF AVAILABLE -->
+          ${file.entropy ? `
+          <div class="mt-2 text-sm">
+            Entropy: <span class="${file.entropy > 7.5 ? 'text-red-400' : 'text-green-400'}">${file.entropy}/8.0</span>
+            ${file.entropy > 7.5 ? '<span class="text-xs text-gray-500 ml-2">(High - possibly packed)</span>' : ''}
+          </div>
+          ` : ''}
+          
+          <!-- SHOW VIRUSTOTAL IF AVAILABLE -->
+          ${file.virustotal && file.virustotal.found ? `
+          <div class="mt-4 p-3 bg-black rounded border ${file.virustotal.malicious > 0 ? 'border-red-500' : 'border-green-500'}">
+            <h5 class="text-gray-400 text-xs mb-2">VIRUSTOTAL RESULTS</h5>
+            <div class="text-sm">
+              <span class="${file.virustotal.malicious > 0 ? 'text-red-400' : 'text-green-400'} font-bold">
+                ${file.virustotal.malicious}/${file.virustotal.total}
+              </span>
+              <span class="text-gray-400">engines detected this APK</span>
+            </div>
+            ${file.virustotal.malicious > 0 ? `
+            <div class="text-xs text-red-400 mt-1">
+              ⚠️ This APK is known malware!
+            </div>
+            ` : ''}
+          </div>
+          ` : ''}
+            
+          <!-- SHOW MERGED FINDINGS -->
+          ${file.findings && file.findings.length > 0 ? `
+          <div>
+            <h4 class="text-white font-semibold mb-2">Security Findings</h4>
+            <ul class="text-sm text-gray-300 space-y-1">
+              ${file.findings.map(f => `
+                <li class="${f.severity === 'critical' ? 'text-red-400' : f.severity === 'high' ? 'text-yellow-400' : 'text-gray-300'}">
+                  • ${f.description} (${f.severity})
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+          ` : ''}
+              
+          <!-- RISK EXPLANATION -->
           <div class="text-sm text-gray-300">
             <span class="text-blue-400 font-semibold">
-              Why this APK is risky:
+              Risk Context:
             </span>
             <p class="mt-2">
-              ${file.apkAnalysis.explanation}
+              ${file.apkAnalysis.explanation || "No explanation available"}
             </p>
           </div>
-
+              
+          <!-- DANGEROUS PERMISSIONS -->
           <div>
             <h4 class="text-white font-semibold mb-2">
               Dangerous Permissions
@@ -1354,13 +1616,13 @@ function renderDynamicResults(results) {
               }
             </ul>
           </div>
-
+            
           <div class="text-xs text-gray-500">
-            Static permission-based analysis • No runtime execution
+            Merged analysis: Permissions + File Intelligence • No runtime execution
           </div>
         </div>
       `;
-
+            
       container.appendChild(card);
       return;
     }
@@ -1402,13 +1664,49 @@ function renderDynamicResults(results) {
 
                 <!-- BASIC INFO -->
                 <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div>Threat Score: <span class="text-red-400">${
-                      file.threatScore
-                    }/100</span></div>
+                    <div>Threat Score: <span class="text-red-400">${file.threatScore}/100</span></div>
                     <div>Keylogger: <span class="text-red-400">
                         ${file.keyloggerDetected ? "Detected" : "Not Detected"}
                     </span></div>
                 </div>
+
+                <!-- SHOW HASHES IF AVAILABLE (from backend) -->
+                ${file.hashes ? `
+                <div class="mt-4 p-3 bg-black rounded border border-gray-700">
+                    <h5 class="text-gray-400 text-xs mb-2">FILE HASHES</h5>
+                    <div class="font-mono text-xs space-y-1 text-gray-300">
+                        <div>MD5: ${file.hashes.md5}</div>
+                        <div>SHA1: ${file.hashes.sha1}</div>
+                        <div>SHA256: ${file.hashes.sha256}</div>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <!-- SHOW ENTROPY IF AVAILABLE -->
+                ${file.entropy ? `
+                <div class="mt-2 text-sm">
+                    Entropy: <span class="${file.entropy > 7.5 ? 'text-red-400' : 'text-green-400'}">${file.entropy}/8.0</span>
+                    ${file.entropy > 7.5 ? '<span class="text-xs text-gray-500 ml-2">(High - possibly packed)</span>' : ''}
+                </div>
+                ` : ''}
+                
+                <!-- SHOW VIRUSTOTAL IF AVAILABLE -->
+                ${file.virustotal && file.virustotal.found ? `
+                <div class="mt-4 p-3 bg-black rounded border ${file.virustotal.malicious > 0 ? 'border-red-500' : 'border-green-500'}">
+                    <h5 class="text-gray-400 text-xs mb-2">VIRUSTOTAL RESULTS</h5>
+                    <div class="text-sm">
+                        <span class="${file.virustotal.malicious > 0 ? 'text-red-400' : 'text-green-400'} font-bold">
+                            ${file.virustotal.malicious}/${file.virustotal.total}
+                        </span>
+                        <span class="text-gray-400">engines detected this file</span>
+                    </div>
+                    ${file.virustotal.malicious > 0 ? `
+                    <div class="text-xs text-red-400 mt-1">
+                        ⚠️ This file is known malware!
+                    </div>
+                    ` : ''}
+                </div>
+                ` : ''}
                 <!-- RISK EXPOSURE -->
                 <div class="text-sm text-gray-300">
                   <span class="text-blue-400 font-semibold">

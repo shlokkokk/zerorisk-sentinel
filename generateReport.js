@@ -1,20 +1,9 @@
-//  REPORT GENERATION SYSTEM 
-// ZeroRisk Sentinel - Report Generator
-// This file handles JSON and PDF report generation
-
-let selectedFormat = null;
-
-// Helper function to calculate chart data for reports
 function calculateReportChartData() {
   const storedResults = sessionStorage.getItem("analysisResults");
-  if (!storedResults) {
-    return { safe: 0, warning: 0, critical: 0, avgScore: 0 };
-  }
+  if (!storedResults) return { safe: 0, warning: 0, critical: 0, avgScore: 0 };
 
   const results = JSON.parse(storedResults);
-
-  let safe = 0, warning = 0, critical = 0;
-  let totalScore = 0;
+  let safe = 0, warning = 0, critical = 0, totalScore = 0;
 
   results.forEach((file) => {
     if (file.threatLevel === "safe") safe++;
@@ -24,12 +13,9 @@ function calculateReportChartData() {
   });
 
   const avgThreat = results.length ? Math.round(totalScore / results.length) : 0;
-  const avgScore = Math.max(0, 100 - avgThreat);
-
-  return { safe, warning, critical, avgScore };
+  return { safe, warning, critical, avgScore: Math.max(0, 100 - avgThreat) };
 }
 
-// Open the report format modal
 function openReportModal() {
   const modal = document.getElementById('reportModal');
   if (!modal) return;
@@ -39,20 +25,21 @@ function openReportModal() {
   modal.querySelector('div').style.transform = 'scale(1)';
   modal.querySelector('div').style.opacity = '1';
 
-  // Reset selection
   selectedFormat = null;
   document.querySelectorAll('.format-opt').forEach(el => {
     el.style.borderColor = 'rgba(0,212,255,0.2)';
     el.style.background = 'rgba(255,255,255,0.03)';
+    el.style.boxShadow = 'none';
   });
+  
   const genBtn = document.getElementById('genReportBtn');
   if (genBtn) {
     genBtn.disabled = true;
-    genBtn.style.opacity = '0.5';
+    genBtn.style.opacity = '0.4';
+    genBtn.style.cursor = 'not-allowed';
   }
 }
 
-// Close the report format modal
 function closeReportModal() {
   const modal = document.getElementById('reportModal');
   if (!modal) return;
@@ -63,51 +50,50 @@ function closeReportModal() {
   modal.querySelector('div').style.opacity = '0';
 }
 
-// Select report format (JSON or PDF)
 function selectFormat(format) {
   selectedFormat = format;
 
-  // Visual selection
   document.querySelectorAll('.format-opt').forEach(el => {
     el.style.borderColor = 'rgba(0,212,255,0.2)';
     el.style.background = 'rgba(255,255,255,0.03)';
+    el.style.boxShadow = 'none';
+    el.style.transform = 'scale(1)';
   });
 
   const selectedEl = document.getElementById('fmt-' + format);
   if (selectedEl) {
     selectedEl.style.borderColor = '#00d4ff';
-    selectedEl.style.background = 'rgba(0,212,255,0.1)';
+    selectedEl.style.background = 'rgba(0,212,255,0.15)';
+    selectedEl.style.boxShadow = '0 0 20px rgba(0,212,255,0.3), inset 0 0 20px rgba(0,212,255,0.05)';
+    selectedEl.style.transform = 'scale(1.02)';
   }
 
-  // Enable generate button
   const genBtn = document.getElementById('genReportBtn');
   if (genBtn) {
     genBtn.disabled = false;
     genBtn.style.opacity = '1';
+    genBtn.style.cursor = 'pointer';
   }
 }
 
-// Generate the selected report format
 async function generateSelectedReport() {
   if (!selectedFormat) return;
 
   const btn = document.getElementById('genReportBtn');
   const originalText = btn ? btn.textContent : 'Generate Report';
+  
   if (btn) {
-    btn.textContent = 'Generating...';
+    btn.innerHTML = '<span class="animate-pulse">Generating...</span>';
     btn.disabled = true;
   }
 
   try {
-    if (selectedFormat === 'json') {
-      await generateJSONReport();
-    } else if (selectedFormat === 'pdf') {
-      await generatePDFReport();
-    }
+    if (selectedFormat === 'json') await generateJSONReport();
+    else if (selectedFormat === 'pdf') await generatePDFReport();
+    
     closeReportModal();
     showNotification('Report generated successfully!', 'success');
   } catch (error) {
-    console.error('Report generation error:', error);
     showNotification('Failed to generate report: ' + error.message, 'error');
   } finally {
     if (btn) {
@@ -117,7 +103,6 @@ async function generateSelectedReport() {
   }
 }
 
-// Generate JSON report
 async function generateJSONReport() {
   const fileData = JSON.parse(sessionStorage.getItem('analysisResults') || '[]');
   const urlData = JSON.parse(sessionStorage.getItem('urlResults') || '[]');
@@ -136,7 +121,24 @@ async function generateJSONReport() {
       overallSecurityScore: chartData.avgScore,
       threatDistribution: chartData
     },
-    fileAnalysis: fileData,
+    fileAnalysis: fileData.map(file => ({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      threatLevel: file.threatLevel,
+      threatScore: file.threatScore,
+      hashes: file.hashes || {},
+      entropy: file.entropy,
+      fileType: file.fileType,
+      virustotal: file.virustotal,
+      keyloggerDetected: file.keyloggerDetected,
+      malwareDetected: file.malwareDetected,
+      extensionMismatch: file.extensionMismatch,
+      riskExposure: file.riskExposure,
+      spywareProfile: file.spywareProfile,
+      findings: file.findings,
+      aiExplanation: file._aiExplanation || null
+    })),
     urlAnalysis: urlData
   };
 
@@ -153,252 +155,201 @@ async function generateJSONReport() {
   URL.revokeObjectURL(url);
 }
 
-// Generate PDF report using jsPDF
 async function generatePDFReport() {
   const { jsPDF } = window.jspdf;
-  if (!jsPDF) {
-    throw new Error('PDF library not loaded');
-  }
+  if (!jsPDF) throw new Error('PDF library not loaded');
   
   const doc = new jsPDF();
-
   const fileData = JSON.parse(sessionStorage.getItem('analysisResults') || '[]');
   const urlData = JSON.parse(sessionStorage.getItem('urlResults') || '[]');
   const chartData = calculateReportChartData();
 
-  // Colors
   const primaryColor = [0, 212, 255];
   const greenColor = [0, 255, 65];
   const redColor = [220, 20, 60];
   const yellowColor = [255, 107, 53];
+  const darkBg = [10, 10, 10];
+  const panelBg = [26, 26, 26];
 
-  // Header
-  doc.setFillColor(10, 10, 10);
-  doc.rect(0, 0, 210, 40, 'F');
+  doc.setFillColor(...darkBg);
+  doc.rect(0, 0, 210, 297, 'F');
+
+  doc.setFillColor(...panelBg);
+  doc.roundedRect(10, 10, 190, 35, 3, 3, 'F');
 
   doc.setTextColor(...primaryColor);
-  doc.setFontSize(24);
+  doc.setFontSize(28);
   doc.setFont('helvetica', 'bold');
-  doc.text('ZeroRisk Sentinel', 20, 25);
+  doc.text('ZeroRisk Sentinel', 20, 30);
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Security Analysis Report', 20, 33);
-
-  // Report info
-  doc.setTextColor(100, 100, 100);
+  doc.setTextColor(200, 200, 200);
   doc.setFontSize(10);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 50);
-  doc.text(`Report ID: ZRS-${Date.now().toString(36).toUpperCase()}`, 20, 56);
-
-  // Executive Summary Section
-  doc.setTextColor(...primaryColor);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Executive Summary', 20, 75);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 40);
+  doc.text(`ID: ZRS-${Date.now().toString(36).toUpperCase().slice(-8)}`, 140, 40);
 
   doc.setDrawColor(...primaryColor);
   doc.setLineWidth(0.5);
-  doc.line(20, 78, 190, 78);
+  doc.line(20, 55, 190, 55);
 
-  // Summary stats
+  doc.setTextColor(...primaryColor);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Executive Summary', 20, 70);
+
+  doc.setFillColor(...panelBg);
+  doc.roundedRect(20, 78, 170, 45, 2, 2, 'F');
+
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
+  
+  let y = 88;
+  doc.text(`Files Analyzed: ${fileData.length}`, 30, y);
+  y += 8;
+  doc.text(`URLs Analyzed: ${urlData.length}`, 30, y);
+  y += 8;
+  doc.text(`Security Score: ${chartData.avgScore}/100`, 30, y);
+  y += 8;
 
-  let yPos = 88;
-  doc.text(`Total Files Analyzed: ${fileData.length}`, 25, yPos);
-  yPos += 7;
-  doc.text(`Total URLs Analyzed: ${urlData.length}`, 25, yPos);
-  yPos += 7;
-  doc.text(`Overall Security Score: ${chartData.avgScore}/100`, 25, yPos);
-  yPos += 7;
-
-  // Threat level color
   let threatColor = greenColor;
   let threatText = 'LOW RISK';
-  if (chartData.avgScore < 40) {
-    threatColor = redColor;
-    threatText = 'CRITICAL RISK';
-  } else if (chartData.avgScore < 70) {
-    threatColor = yellowColor;
-    threatText = 'MODERATE RISK';
-  }
+  if (chartData.avgScore < 40) { threatColor = redColor; threatText = 'CRITICAL RISK'; }
+  else if (chartData.avgScore < 70) { threatColor = yellowColor; threatText = 'MODERATE RISK'; }
 
   doc.setTextColor(...threatColor);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Threat Level: ${threatText}`, 25, yPos);
-  yPos += 15;
+  doc.text(`Status: ${threatText}`, 30, y);
 
-  // Threat Distribution
   doc.setTextColor(...primaryColor);
-  doc.setFontSize(16);
-  doc.text('Threat Distribution', 20, yPos);
-  yPos += 3;
-  doc.line(20, yPos, 190, yPos);
-  yPos += 10;
+  doc.setFontSize(18);
+  doc.text('Threat Distribution', 20, 135);
+
+  doc.setFillColor(...panelBg);
+  doc.roundedRect(20, 142, 170, 30, 2, 2, 'F');
 
   doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
 
-  doc.setTextColor(0, 255, 65);
-  doc.text(`Safe: ${chartData.safe}`, 25, yPos);
-  yPos += 7;
+  doc.setTextColor(...greenColor);
+  doc.text(`● Safe: ${chartData.safe}`, 35, 155);
+  doc.setTextColor(...yellowColor);
+  doc.text(`● Warnings: ${chartData.warning}`, 85, 155);
+  doc.setTextColor(...redColor);
+  doc.text(`● Critical: ${chartData.critical}`, 135, 155);
 
-  doc.setTextColor(255, 107, 53);
-  doc.text(`Warnings: ${chartData.warning}`, 25, yPos);
-  yPos += 7;
+  let yPos = 185;
 
-  doc.setTextColor(220, 20, 60);
-  doc.text(`Critical Threats: ${chartData.critical}`, 25, yPos);
-  yPos += 15;
-
-  // File Analysis Details
   if (fileData.length > 0) {
     doc.setTextColor(...primaryColor);
-    doc.setFontSize(16);
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('File Analysis Details', 20, yPos);
-    yPos += 3;
-    doc.line(20, yPos, 190, yPos);
-    yPos += 10;
+    doc.text('Detailed File Analysis', 20, yPos);
+    yPos += 12;
 
     fileData.forEach((file, index) => {
-      // Check if we need a new page
-      if (yPos > 270) {
-        doc.addPage();
-        yPos = 20;
+      const needsNewPage = yPos > 240;
+      if (needsNewPage) { 
+        doc.addPage(); 
+        doc.setFillColor(...darkBg); 
+        doc.rect(0, 0, 210, 297, 'F'); 
+        yPos = 20; 
       }
+
+      const boxHeight = file.findings?.length > 2 ? 50 : 35;
+      
+      doc.setFillColor(...panelBg);
+      doc.roundedRect(20, yPos - 8, 170, boxHeight, 2, 2, 'F');
 
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${index + 1}. ${file.name || 'Unknown'}`, 25, yPos);
-      yPos += 7;
-
       doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${index + 1}. ${(file.name || 'Unknown').substring(0, 40)}`, 30, yPos);
 
-      // Threat level with color
-      let fileThreatColor = greenColor;
-      if (file.threatLevel === 'critical' || file.threatLevel === 'high') {
-        fileThreatColor = redColor;
-      } else if (file.threatLevel === 'medium') {
-        fileThreatColor = yellowColor;
+      let fileColor = greenColor;
+      if (file.threatLevel === 'critical' || file.threatLevel === 'high') fileColor = redColor;
+      else if (file.threatLevel === 'medium') fileColor = yellowColor;
+
+      doc.setTextColor(...fileColor);
+      doc.setFontSize(9);
+      doc.text(`${(file.threatLevel || 'unknown').toUpperCase()} | Score: ${file.threatScore || 0}/100`, 30, yPos + 6);
+
+      doc.setTextColor(150, 150, 150);
+      doc.text(`${((file.size || 0) / 1024).toFixed(1)} KB`, 140, yPos + 6);
+
+      if (file.hashes?.sha256) {
+        doc.setTextColor(100, 100, 100);
+        doc.setFontSize(7);
+        doc.text(`SHA256: ${file.hashes.sha256.substring(0, 32)}...`, 30, yPos + 12);
       }
 
-      doc.setTextColor(...fileThreatColor);
-      doc.text(`Threat Level: ${(file.threatLevel || 'unknown').toUpperCase()}`, 30, yPos);
-      yPos += 5;
-
-      doc.setTextColor(200, 200, 200);
-      doc.text(`Threat Score: ${file.threatScore || 0}/100`, 30, yPos);
-      yPos += 5;
-
-      if (file.size) {
-        const sizeKB = (file.size / 1024).toFixed(2);
-        doc.text(`Size: ${sizeKB} KB`, 30, yPos);
-        yPos += 5;
-      }
-
-      // Findings
       if (file.findings && file.findings.length > 0) {
-        doc.setTextColor(255, 107, 53);
-        doc.text('Findings:', 30, yPos);
-        yPos += 5;
-
-        file.findings.forEach(finding => {
-          if (yPos > 280) {
-            doc.addPage();
-            yPos = 20;
-          }
-          doc.setTextColor(200, 200, 200);
-          const findingText = finding.description || finding;
-          doc.text(`- ${findingText.substring(0, 75)}${findingText.length > 75 ? '...' : ''}`, 35, yPos);
-          yPos += 4;
+        doc.setTextColor(...yellowColor);
+        doc.setFontSize(8);
+        doc.text('Detections:', 30, yPos + 18);
+        
+        doc.setTextColor(200, 200, 200);
+        file.findings.slice(0, 2).forEach((finding, i) => {
+          const text = `- ${finding.description || finding}`.substring(0, 55);
+          doc.text(text, 35, yPos + 23 + (i * 4));
         });
       }
 
-      yPos += 8;
+      yPos += boxHeight + 5;
     });
   }
 
-  // URL Analysis Details
   if (urlData.length > 0) {
-    if (yPos > 240) {
-      doc.addPage();
-      yPos = 20;
+    if (yPos > 240) { 
+      doc.addPage(); 
+      doc.setFillColor(...darkBg); 
+      doc.rect(0, 0, 210, 297, 'F'); 
+      yPos = 20; 
     }
 
     doc.setTextColor(...primaryColor);
-    doc.setFontSize(16);
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('URL Analysis Details', 20, yPos);
-    yPos += 3;
-    doc.line(20, yPos, 190, yPos);
-    yPos += 10;
+    doc.text('URL Analysis', 20, yPos);
+    yPos += 12;
 
     urlData.forEach((url, index) => {
-      if (yPos > 270) {
-        doc.addPage();
-        yPos = 20;
+      if (yPos > 270) { 
+        doc.addPage(); 
+        doc.setFillColor(...darkBg); 
+        doc.rect(0, 0, 210, 297, 'F'); 
+        yPos = 20; 
       }
+
+      doc.setFillColor(...panelBg);
+      doc.roundedRect(20, yPos - 8, 170, 20, 2, 2, 'F');
 
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      const urlText = (url.url || '').substring(0, 70) + ((url.url || '').length > 70 ? '...' : '');
-      doc.text(`${index + 1}. ${urlText}`, 25, yPos);
-      yPos += 6;
+      doc.text(`${index + 1}. ${(url.url || '').substring(0, 50)}`, 30, yPos);
 
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
+      let urlColor = greenColor;
+      if (url.threatLevel === 'critical' || url.threatLevel === 'high') urlColor = redColor;
+      else if (url.threatLevel === 'medium') urlColor = yellowColor;
 
-      let urlThreatColor = greenColor;
-      if (url.threatLevel === 'critical' || url.threatLevel === 'high') {
-        urlThreatColor = redColor;
-      } else if (url.threatLevel === 'medium') {
-        urlThreatColor = yellowColor;
-      }
+      doc.setTextColor(...urlColor);
+      doc.setFontSize(8);
+      doc.text(`${(url.threatLevel || 'unknown').toUpperCase()} | ${url.threatScore || 0}/100`, 30, yPos + 5);
 
-      doc.setTextColor(...urlThreatColor);
-      doc.text(`Threat Level: ${(url.threatLevel || 'unknown').toUpperCase()} | Score: ${url.threatScore || 0}/100`, 30, yPos);
-      yPos += 5;
-
-      if (url.findings && url.findings.length > 0) {
-        doc.setTextColor(200, 200, 200);
-        doc.text('Indicators:', 30, yPos);
-        yPos += 5;
-
-        url.findings.forEach(finding => {
-          if (yPos > 280) {
-            doc.addPage();
-            yPos = 20;
-          }
-          const findingStr = String(finding).substring(0, 75) + (String(finding).length > 75 ? '...' : '');
-          doc.text(`- ${findingStr}`, 35, yPos);
-          yPos += 4;
-        });
-      }
-
-      yPos += 8;
+      yPos += 22;
     });
   }
 
-  // Footer on each page
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    doc.setFillColor(10, 10, 10);
+    doc.setFillColor(26, 26, 26);
     doc.rect(0, 287, 210, 10, 'F');
     doc.setTextColor(100, 100, 100);
     doc.setFontSize(8);
-    doc.text(`ZeroRisk Sentinel v2.1 | Page ${i} of ${pageCount}`, 105, 293, { align: 'center' });
-    doc.text('Confidential Security Report', 190, 293, { align: 'right' });
+    doc.text(`ZeroRisk Sentinel v2.1 | ${i}/${pageCount}`, 105, 293, { align: 'center' });
   }
 
-  // Save
   doc.save(`zerorisk-report-${new Date().toISOString().split('T')[0]}.pdf`);
 }
-//  END REPORT GENERATION 
