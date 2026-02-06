@@ -278,6 +278,23 @@
         scrollbar-width: thin;
         scrollbar-color: #00d4ff rgba(10, 10, 10, 0.8);
       }
+      /* Demo buttons visible and animated */
+      #demoUrls .analysis-card {
+        opacity: 1;
+        transform: translateY(0);
+        animation: fadeInUp 0.3s ease;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
     </style>
   </head>
   <body class="min-h-screen flex flex-col">
@@ -444,28 +461,51 @@
                   Click a sample to auto-scan
                 </p>
 
-                <div class="space-y-2">
-                  <button
-                    onclick="runDemoURL('https://secure-google-login.xyz/verify')"
-                    class="w-full p-3 bg-black rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 text-left"
-                  >
-                    secure-google-login.xyz/verify
-                  </button>
+<div class="space-y-3">
+  <!-- SAFE -->
+  <button onclick="runDemoURL('https://github.com')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-green-500/60 text-green-400 hover:bg-green-500/20 hover:border-green-500 text-left transition-all duration-200 shadow-lg shadow-green-500/10">
+    <span class="font-mono text-sm">github.com</span>
+    <span class="text-xs text-gray-500 block mt-1">Safe - HTTPS, valid SSL, old domain</span>
+  </button>
 
-                  <button
-                    onclick="runDemoURL('http://paypal-alerts-login.com')"
-                    class="w-full p-3 bg-black rounded border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 text-left"
-                  >
-                    paypal-alerts-login.com
-                  </button>
+  <button onclick="runDemoURL('https://stackoverflow.com')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-green-500/60 text-green-400 hover:bg-green-500/20 hover:border-green-500 text-left transition-all duration-200 shadow-lg shadow-green-500/10">
+    <span class="font-mono text-sm">stackoverflow.com</span>
+    <span class="text-xs text-gray-500 block mt-1">Safe - Enterprise SSL, DNSSEC</span>
+  </button>
 
-                  <button
-                    onclick="runDemoURL('http://192.168.0.1/auth')"
-                    class="w-full p-3 bg-black rounded border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 text-left"
-                  >
-                    192.168.0.1/auth
-                  </button>
-                </div>
+  <!-- MEDIUM -->
+  <button onclick="runDemoURL('http://neverssl.com')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-yellow-500/60 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500 text-left transition-all duration-200 shadow-lg shadow-yellow-500/10">
+    <span class="font-mono text-sm">neverssl.com</span>
+    <span class="text-xs text-gray-500 block mt-1">HTTP only - no encryption</span>
+  </button>
+
+  <!-- HIGH -->
+  <button onclick="runDemoURL('http://192.168.1.1/admin')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-orange-500/60 text-orange-400 hover:bg-orange-500/20 hover:border-orange-500 text-left transition-all duration-200 shadow-lg shadow-orange-500/10">
+    <span class="font-mono text-sm">192.168.1.1/admin</span>
+    <span class="text-xs text-gray-500 block mt-1">Private IP + admin path</span>
+  </button>
+
+  <button onclick="runDemoURL('https://bit.ly/3abc123')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-orange-500/60 text-orange-400 hover:bg-orange-500/20 hover:border-orange-500 text-left transition-all duration-200 shadow-lg shadow-orange-500/10">
+    <span class="font-mono text-sm">bit.ly/3abc123</span>
+    <span class="text-xs text-gray-500 block mt-1">URL shortener - hidden destination</span>
+  </button>
+
+  <!-- CRITICAL -->
+  <button onclick="runDemoURL('http://login-paypal-secure.tk/verify')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-red-500/60 text-red-400 hover:bg-red-500/20 hover:border-red-500 text-left transition-all duration-200 shadow-lg shadow-red-500/10">
+    <span class="font-mono text-sm">login-paypal-secure.tk</span>
+    <span class="text-xs text-gray-500 block mt-1">Free TLD + phishing keywords</span>
+  </button>
+
+  <button onclick="runDemoURL('http://192.168.0.1/login.php?session=evil')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-red-500/60 text-red-400 hover:bg-red-500/20 hover:border-red-500 text-left transition-all duration-200 shadow-lg shadow-red-500/10">
+    <span class="font-mono text-sm">192.168.0.1/login.php</span>
+    <span class="text-xs text-gray-500 block mt-1">Raw IP + phishing params + PHP</span>
+  </button>
+
+  <button onclick="runDemoURL('https://secure-banking-login.xyz/verify/account/update')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-red-500/60 text-red-400 hover:bg-red-500/20 hover:border-red-500 text-left transition-all duration-200 shadow-lg shadow-red-500/10">
+    <span class="font-mono text-sm">secure-banking-login.xyz</span>
+    <span class="text-xs text-gray-500 block mt-1">Risky TLD + deep path + bank keywords</span>
+  </button>
+</div>
               </div>
             </section>
 

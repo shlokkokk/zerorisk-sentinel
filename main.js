@@ -249,7 +249,7 @@ class CyberGuardSpywareAnalyzer {
         if (data.file_scanner?.available) {
           if (data.file_scanner?.yara_loaded) {
             if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-green-400';
-            if (statusText) statusText.textContent = 'Backend Active (YARA)';
+            if (statusText) statusText.textContent = 'Backend Active (Better scanning)';
           } else {
             if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-yellow-400';
             if (statusText) statusText.textContent = 'Backend Online';

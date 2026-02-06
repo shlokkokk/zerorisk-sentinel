@@ -170,11 +170,29 @@ function generateLocalExplanation(findings, level, url) {
     text += `\n${map[level]} (Local analysis - backend unavailable)`;
     return text;
 }
-
-function runDemoURL(demoType) {
+// Toggle between Live and Demo mode
+function setScanMode(mode) {
+    const liveBtn = document.getElementById('liveModeBtn');
+    const demoBtn = document.getElementById('demoModeBtn');
+    const demoUrlsSection = document.getElementById('demoUrls');
+    
+    if (mode === 'live') {
+        // Live mode active
+        liveBtn.className = 'px-4 py-2 rounded-lg bg-blue-600 text-white font-medium';
+        demoBtn.className = 'px-4 py-2 rounded-lg bg-gray-700 text-gray-300 font-medium hover:bg-gray-600';
+        demoUrlsSection.classList.add('hidden');
+    } else {
+        // Demo mode active
+        demoBtn.className = 'px-4 py-2 rounded-lg bg-blue-600 text-white font-medium';
+        liveBtn.className = 'px-4 py-2 rounded-lg bg-gray-700 text-gray-300 font-medium hover:bg-gray-600';
+        demoUrlsSection.classList.remove('hidden');
+    }
+}
+function runDemoURL(demoTypeOrUrl) {
     const input = document.getElementById("urlInput");
     if (!input) return;
 
+    // Demo URL database - for when a key is passed
     const demoURLs = {
         'google-phish': 'https://secure-google-login.xyz/verify?token=abc123&session=fake',
         'paypal-phish': 'http://paypal-alerts-login.com/secure/verify/account',
@@ -183,7 +201,9 @@ function runDemoURL(demoType) {
         'mixed-signals': 'http://amazon-security-verify.tk/login?urgent=true'
     };
 
-    const url = demoURLs[demoType];
+    // Check if it's a key in demoURLs or already a full URL
+    const url = demoURLs[demoTypeOrUrl] || demoTypeOrUrl;
+    
     if (!url) return;
 
     input.value = url;
