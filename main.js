@@ -2044,7 +2044,7 @@ let touchStartX = 0;
 let touchEndX = 0;
 
 const SWIPE_THRESHOLD = 60;
-const pages = ["index.html", "url.html", "results.html", "about.html"];
+const pages = ["index.html", "results.html", "about.html"];
 // only n mobile
 const swipeHint = document.getElementById("swipeHint");
 
