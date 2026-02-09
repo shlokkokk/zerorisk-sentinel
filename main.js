@@ -1576,7 +1576,7 @@ function renderDynamicResults(results) {
             <ul class="text-sm text-gray-300 space-y-1">
               ${file.findings.map(f => `
                 <li class="${f.severity === 'critical' ? 'text-red-400' : f.severity === 'high' ? 'text-yellow-400' : 'text-gray-300'}">
-                  • ${f.description} (${f.severity})
+                  • ${f.description || f.rule || f.type} (${f.severity})
                 </li>
               `).join('')}
             </ul>
