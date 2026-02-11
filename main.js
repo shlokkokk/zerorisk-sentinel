@@ -95,7 +95,7 @@ function generateRiskExplanation(analysis) {
   // SAFE
   return `SAFE: No threats detected. Clean file hash, normal entropy, no suspicious patterns.`;
 }
-const BACKEND_URL = 'https://cyberthon-backend.onrender.com';
+const BACKEND_URL = 'https://zerorisk-sentinel-backend.onrender.com';
 class RealFileScanner {
   constructor() {
     this.backendUrl = BACKEND_URL;
@@ -237,7 +237,7 @@ class CyberGuardSpywareAnalyzer {
   }
   async checkBackendStatus() {
     try {
-      const res = await fetch("https://cyberthon-backend.onrender.com/api/status");
+      const res = await fetch("https://zerorisk-sentinel-backend.onrender.com/api/status");
       if (res.ok) {
         const data = await res.json();
         this.backendAvailable = true;
@@ -759,7 +759,7 @@ class CyberGuardSpywareAnalyzer {
           formData.append("file", file);
 
           const res = await fetch(
-            "https://cyberthon-backend.onrender.com/api/analyze-apk",
+            "https://zerorisk-sentinel-backend.onrender.com/api/analyze-apk",
             {
               method: "POST",
               body: formData,
@@ -1817,7 +1817,7 @@ async function runAIExplanation(file, targetId) {
   // Try backend AI first
   try {
     const response = await fetch(
-      "https://cyberthon-backend.onrender.com/api/ai-explain",
+      "https://zerorisk-sentinel-backend.onrender.com/api/ai-explain",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2119,7 +2119,7 @@ async function updateBackendStatus() {
 
   try {
     const res = await fetch(
-      "https://cyberthon-backend.onrender.com/api/status",
+      "https://zerorisk-sentinel-backend.onrender.com/api/status",
       { cache: "no-store" }
     );
 

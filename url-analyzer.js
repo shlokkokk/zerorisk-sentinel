@@ -1,4 +1,4 @@
-const BACKEND_URL = 'https://cyberthon-backend.onrender.com';
+const BACKEND_URL = 'https://zerorisk-sentinel-backend.onrender.com';
 const BACKEND_TIMEOUT = 25000; // 15 seconds
 
 // Main analyze function with timeout and fallback
