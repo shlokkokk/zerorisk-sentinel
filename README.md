@@ -23,6 +23,12 @@ This is the client-side application for ZeroRisk Sentinel. It performs initial s
 ├── url-analyzer.js     # URL scanning logic
 └── generateReport.js   # PDF/JSON report generation
 ```
+| 🔗 Backend Service | |
+|:---|:---|
+| Repository | [`cyberthon-backend`](https://github.com/shlokkokk/cyberthon-backend) |
+| Description | Separate API layer for this frontend |
+
+---
 
 ### Page Breakdown
 
