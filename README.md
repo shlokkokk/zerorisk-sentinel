@@ -1,164 +1,238 @@
-# ZeroRisk Sentinel 
+# ZeroRisk Sentinel - Frontend
 
-ZeroRisk Sentinel is an academic cybersecurity project designed to demonstrate how static analysis, heuristic detection, and behavioral inference can be used to identify potential digital risks before execution.
+The web interface for ZeroRisk Sentinel, a hybrid cybersecurity analysis platform. Built with vanilla JavaScript and a cyberpunk aesthetic, this frontend provides file scanning, URL analysis, and comprehensive security reporting.
 
-The project focuses on explainable, offline-first security analysis of files, URLs, and mobile applications for learning, demonstration, and academic evaluation purposes.
-
----
-https://cyberthon-zeta.vercel.app/
-
-## Core Methodology
-
-ZeroRisk Sentinel follows a pre-execution security analysis approach built around:
-
-- Static inspection (no execution or sandboxing)
-- Rule-based and heuristic detection
-- Behavioral inference from observed indicators
-- Optional AI-assisted explanations for interpretability
-
-Detection decisions are explainable and based on observable signals rather than black-box classification.
+**Created by Shlok Shah**
 
 ---
 
-## Analysis Scope & Limitations
+## Overview
 
-- Performs **static analysis only**
-- No file execution, URL visiting, or OS interaction
-- No live browsing, sandboxing, or emulation
-- Detection results are **heuristic-based indicators**, not definitive proof
-- Does **not** replace antivirus or enterprise security solutions
-- Designed strictly for **learning, demonstration, and academic use**
+This is the client-side application for ZeroRisk Sentinel. It performs initial static analysis directly in the browser while optionally leveraging a Python backend for enhanced threat intelligence. The frontend is designed to work standalone with graceful degradation when backend services are unavailable.
 
 ---
 
-## Analysis Modes
+## Frontend Structure
 
-- **Quick Scan**  
-  Performs fast, strategic sampling of file content for rapid risk awareness.
+```
+├── index.html          # Main file scanner interface
+├── url.html            # URL security analysis page
+├── results.html        # Detailed analysis results & reporting
+├── about.html          # Documentation & methodology
+├── main.js             # Core file analysis engine
+├── url-analyzer.js     # URL scanning logic
+└── generateReport.js   # PDF/JSON report generation
+```
 
-- **Deep Scan (Demo Mode)**  
-  Streams and inspects full file content in chunks for extended heuristic analysis.  
-  Intended for controlled demonstrations and evaluation scenarios.
+### Page Breakdown
 
-Scan mode selection is fully user-controlled.
-
----
-
-## File Security Analysis
-
-### Header & Signature Inspection
-- Magic byte verification
-- Extension mismatch detection
-- Spoofing and RTL override detection
-
-### Malware & Spyware Indicators
-- Suspicious code patterns
-- Command execution functions
-- Registry and system modification indicators
-- Network and data exfiltration patterns
-
-### Keylogger & Surveillance Detection
-- Keyboard hook indicators
-- API call pattern inspection
-- Stealth and monitoring behavior inference
-
-### Permission & Risk Inference
-- Privilege escalation indicators
-- Persistence behavior patterns
-- Risk scoring based on inferred intent
+| Page | Purpose |
+|------|---------|
+| **index.html** | File drop zone with drag-and-drop support, scan mode toggle (Live/Demo), deep scan option |
+| **url.html** | URL input with demo samples, backend connectivity check, heuristic fallback |
+| **results.html** | ECharts visualizations, dynamic result rendering, report export modal |
+| **about.html** | Full methodology documentation, tech stack info, architecture explanation |
 
 ---
 
-## APK Static Analysis
+## Data Flow & API Communication
 
-Android application packages (APKs) are inspected using static metadata and permission analysis.
+### Backend Integration
 
-- Manifest extraction
-- High-risk permission detection
-- Permission combination risk scoring
-- No execution, emulation, or runtime monitoring
+The frontend communicates with a Flask backend at `https://cyberthon-backend.onrender.com`:
 
-APK analysis is performed using a Python-based backend and remains strictly static.
+```javascript
+// Backend status check on load
+GET /api/status
 
----
+// File scanning (non-APK files)
+POST /api/scan-file
+Content-Type: multipart/form-data
 
-## URL Security Analysis Module
+// APK analysis
+POST /api/analyze-apk
+Content-Type: multipart/form-data
 
-The URL analysis module applies weighted heuristic rules to identify potentially deceptive or suspicious links commonly used in phishing attacks.
+// URL analysis
+POST /api/analyze-url
+Content-Type: application/json
+{ "url": "https://example.com" }
 
-### Analysis Techniques
-- Protocol and HTTPS validation
-- IP-based and shortened URL detection
-- Suspicious domain and TLD patterns
-- Phishing keyword and impersonation indicators
-- Structural and query parameter inspection
+// Hash lookup (no upload)
+GET /api/scan-hash/<sha256>
+```
 
-No live website access, redirection, DNS lookup, or reputation querying is performed.
+### Graceful Degradation
 
----
+When the backend is unavailable, the frontend automatically falls back to client-side analysis:
 
-## Heuristic & Behavioral Correlation
+```javascript
+// From url-analyzer.js
+try {
+  const response = await fetch(`${BACKEND_URL}/api/analyze-url`, {...});
+  // Use backend results
+} catch (err) {
+  // Backend failed - use local heuristics
+  performLocalURLAnalysis(url);
+}
+```
 
-Detected indicators are correlated using a rule-driven heuristic engine to infer overall threat confidence.
+### Session Storage
 
-- Multi-signal correlation
-- Weighted behavior scoring
-- Normalized confidence levels
-- Explainable decision logic
+Analysis results persist in `sessionStorage` for cross-page navigation:
 
-An optional AI-assisted explanation layer converts final results into human-readable security insights.  
-The AI component does **not** influence detection logic or scoring.
+```javascript
+// Store results
+sessionStorage.setItem("analysisResults", JSON.stringify(results));
+sessionStorage.setItem("urlResults", JSON.stringify(urlResults));
 
----
-
-## System Workflow
-
-1. User submits a file or URL
-2. Static data is extracted without execution
-3. Heuristic rules and indicators are applied
-4. Risk scores and threat levels are calculated
-5. Findings are correlated into a behavior profile
-6. Results are presented with explanations
-
----
-
-## Architecture Philosophy
-
-ZeroRisk Sentinel is designed as a hybrid-ready system.
-
-- Client-side analysis remains the primary and fail-safe layer
-- Offline-first with zero data exposure
-- Optional backend services enhance depth without replacing local analysis
-- AI explanations remain optional and non-blocking
+// Retrieve on results page
+const fileData = JSON.parse(sessionStorage.getItem("analysisResults") || "[]");
+```
 
 ---
 
-## Deployment
+## UI / UX Decisions
 
-- Frontend: Demo-hosted for academic evaluation
-- Backend: Hosted on Render (demo environment only)
+### Visual Design
+
+- **Cyberpunk aesthetic**: Dark theme with neon accents (cyan `#00d4ff`, green `#00ff41`)
+- **Matrix background**: Canvas-based falling characters animation
+- **Custom cursor**: SVG crosshair that changes color on click
+- **Glassmorphism cards**: Backdrop blur with gradient borders
+
+### Interactive Elements
+
+| Feature | Implementation |
+|---------|----------------|
+| **Drag & Drop** | Native HTML5 API with visual feedback (`drag-over` class) |
+| **Progress Animation** | Anime.js for smooth progress bar fills |
+| **Charts** | ECharts for threat distribution (orbit visualization) and security score gauge |
+| **Terminal Output** | Simulated console with color-coded log levels |
+| **Page Transitions** | CSS transforms with directional exit animations |
+
+### Scan Modes
+
+- **Live Mode**: Real file/URL analysis with backend integration
+- **Demo Mode**: Pre-configured samples for testing without uploading actual files
+
+### Deep Scan Toggle
+
+```javascript
+// Quick Scan: Samples strategic positions (start, middle, end)
+// Deep Scan: Streams entire file in 128KB chunks
+const CHUNK = 128 * 1024;
+while (offset < file.size) {
+  const slice = file.slice(offset, offset + CHUNK);
+  // Process chunk...
+}
+```
 
 ---
 
-## Security & Privacy
+## Tech Stack
 
-- All analysis is performed locally
-- No files or URLs are permanently stored
-- No tracking, telemetry, or background data collection
-- Session-based, temporary analysis only
-
----
-
-## Project Purpose
-
-- Study static and heuristic cybersecurity techniques
-- Understand spyware and phishing indicators
-- Demonstrate explainable security analysis
-- Support academic learning and cyberthon evaluation
+| Category | Libraries |
+|----------|-----------|
+| **Styling** | Tailwind CSS (CDN) |
+| **Animations** | Anime.js, Typed.js |
+| **Charts** | ECharts 5.4.3 |
+| **PDF Generation** | jsPDF 2.5.1 |
+| **Fonts** | JetBrains Mono, Inter, Orbitron (Google Fonts) |
 
 ---
 
-© 2025 ZeroRisk Sentinel  
-Academic cybersecurity analysis project
+## Key Features
 
+### File Analysis (`main.js`)
 
+- **Signature matching**: Regex-based malware pattern detection
+- **File header analysis**: Magic number detection for 30+ file types
+- **Extension spoofing detection**: Compares claimed extension vs actual header
+- **RTL override detection**: Unicode right-to-left character detection
+- **Keylogger detection**: Pattern matching for surveillance APIs
+- **Spyware profile**: Surveillance, exfiltration, persistence, stealth scoring
+
+### URL Analysis (`url-analyzer.js`)
+
+- Backend-first with 25-second timeout
+- Local fallback heuristics:
+  - IP-based URL detection
+  - URL shortener detection (bit.ly, tinyurl, etc.)
+  - Phishing keyword matching
+  - Risky TLD detection (.xyz, .tk, .ml)
+  - HTTPS verification
+
+### Report Generation (`generateReport.js`)
+
+| Format | Features |
+|--------|----------|
+| **JSON** | Complete scan metadata, hashes, findings, recommendations |
+| **PDF** | Professional formatted report with cover page, executive summary, threat distribution, per-file breakdown, security recommendations |
+
+Keyboard shortcut: `Ctrl+Shift+R` opens report modal
+
+---
+
+## Architecture Notes
+
+### Hybrid Analysis Flow
+
+```
+User uploads file
+        │
+        ▼
+┌─────────────────┐
+│ Client Analysis │ ← Always runs (header, extension, basic patterns)
+└────────┬────────┘
+         │
+         ▼
+┌──────────────────┐
+│ Backend Available?│
+└────────┬─────────┘
+    Yes /│\ No
+       / │ \
+      ▼  │  ▼
+┌───────┐│ ┌────────────────┐
+│YARA   ││ │ Local Patterns │
+│VT API ││ │ (fallback)     │
+│Hashes ││ └────────────────┘
+└───────┘│
+         │
+         ▼
+┌─────────────────┐
+│ Merge Results   │
+│ Render UI       │
+└─────────────────┘
+```
+
+### Security Considerations
+
+- Files are analyzed locally first before any backend upload
+- Session-only storage (cleared on tab close)
+- No persistent user tracking
+- Transparent processing with visible terminal output
+
+---
+
+## Limitations
+
+- **Static analysis only**: No runtime execution or sandboxing
+- **Browser constraints**: Cannot access system APIs or perform deep OS integration
+- **File size limits**: Large files may cause performance issues in browser
+- **Heuristic-based**: Results indicate risk, not definitive proof of maliciousness
+
+---
+
+## Future Enhancements
+
+- WebAssembly integration for faster local analysis
+- Service Worker for offline functionality
+- WebSocket connection for real-time backend updates
+- Additional export formats (CSV, XML)
+- Dark/light theme toggle
+- Multi-language support
+
+---
+
+**© ZeroRisk Sentinel - Shlok Shah**
