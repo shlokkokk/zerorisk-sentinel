@@ -39,7 +39,7 @@ This is the client-side application for ZeroRisk Sentinel. It performs initial s
 
 ### Backend Integration
 
-The frontend communicates with a Flask backend at `https://cyberthon-backend.onrender.com`:
+The frontend communicates with a Flask backend (configured via environment variable or constant).:
 
 ```javascript
 // Backend status check on load
