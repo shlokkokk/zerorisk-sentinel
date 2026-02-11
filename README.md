@@ -25,7 +25,7 @@ This is the client-side application for ZeroRisk Sentinel. It performs initial s
 ```
 | 🔗 Backend Service | |
 |:---|:---|
-| Repository | [`cyberthon-backend`](https://github.com/shlokkokk/cyberthon-backend) |
+| Repository | [`zerorisk-sentinel-backend`](https://github.com/shlokkokk/zerorisk-sentinel-backend) |
 | Description | Separate API layer for this frontend |
 
 ---
