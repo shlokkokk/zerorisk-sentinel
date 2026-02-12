@@ -1,10 +1,11 @@
 const BACKEND_URL = 'https://zerorisk-sentinel-backend.onrender.com';
-const BACKEND_TIMEOUT = 25000; // 15 seconds
+const BACKEND_TIMEOUT = 25000;
 
 // Main analyze function with timeout and fallback
 async function analyzeURL() {
     const input = document.getElementById("urlInput");
     const url = input.value.trim();
+    const deepScan = document.getElementById("deepScanToggle")?.checked || false;
     
     if (!url) {
         alert("Enter a URL to analyze");
@@ -17,6 +18,13 @@ async function analyzeURL() {
     const progressText = document.getElementById("progressText");
     const currentFile = document.getElementById("currentFile");
     
+    // Deep scan flow
+    if (deepScan) {
+        await performDeepScan(url, progressFill, progressText, currentFile);
+        return;
+    }
+    
+    // Regular scan flow (your existing code)
     const steps = [
         "Connecting to backend...",
         "Checking threat intelligence databases...",
@@ -24,7 +32,6 @@ async function analyzeURL() {
         "Compiling results..."
     ];
     
-    // Animate progress
     let step = 0;
     const progressInterval = setInterval(() => {
         if (step < steps.length) {
@@ -35,7 +42,6 @@ async function analyzeURL() {
         }
     }, 1000);
     
-    // Try backend with timeout
     const backendPromise = fetch(`${BACKEND_URL}/api/analyze-url`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -56,12 +62,10 @@ async function analyzeURL() {
             throw new Error(data.error);
         }
         
-        // Backend success!
         progressFill.style.width = "100%";
         progressText.textContent = "100%";
         currentFile.textContent = "Backend analysis complete!";
         
-        // Small delay to show completion
         await new Promise(r => setTimeout(r, 500));
         
         document.getElementById("scanningProgress").classList.add("hidden");
@@ -69,7 +73,6 @@ async function analyzeURL() {
         window.location.href = "results.html";
         
     } catch (err) {
-        // Backend failed or timeout - use local
         clearInterval(progressInterval);
         console.log("Backend unavailable, using local heuristics:", err.message);
         
@@ -81,6 +84,77 @@ async function analyzeURL() {
     }
 }
 
+// Deep Scan via urlscan.io
+async function performDeepScan(url, progressFill, progressText, currentFile) {
+    progressFill.style.width = "10%";
+    progressText.textContent = "10%";
+    currentFile.textContent = "Submitting to sandbox...";
+    
+    try {
+        const submitRes = await fetch(`${BACKEND_URL}/api/urlscan/submit`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url: url})
+        });
+        
+        const submitData = await submitRes.json();
+        
+        if (!submitData.success) {
+            throw new Error(submitData.error || "Failed to submit");
+        }
+        
+        const scanId = submitData.scan_id;
+        progressFill.style.width = "20%";
+        progressText.textContent = "20%";
+        
+        currentFile.textContent = "Sandbox analyzing... (wait 20-40s)";
+        
+        const maxAttempts = 30; // 60 seconds max
+        const pollInterval = 2000; // 2 seconds
+        
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const progress = 20 + Math.round((attempt / maxAttempts) * 75);
+            progressFill.style.width = progress + "%";
+            progressText.textContent = progress + "%";
+            
+            await new Promise(r => setTimeout(r, pollInterval));
+            
+            const resultRes = await fetch(`${BACKEND_URL}/api/urlscan/result/${scanId}`);
+            const resultData = await resultRes.json();
+            
+            // SUCCESS
+            if (resultData.success && resultData.status === 'completed') {
+                progressFill.style.width = "100%";
+                progressText.textContent = "100%";
+                currentFile.textContent = "Complete!";
+                
+                await new Promise(r => setTimeout(r, 500));
+                document.getElementById("scanningProgress").classList.add("hidden");
+                
+                sessionStorage.setItem("urlResults", JSON.stringify([resultData]));
+                window.location.href = "results.html";
+                return;
+            }
+            
+            // FAILED
+            if (resultData.status === 'failed') {
+                throw new Error(resultData.error || "Failed");
+            }
+            
+            currentFile.textContent = `Analyzing... (${attempt + 1}/${maxAttempts})`;
+        }
+        
+        throw new Error("Timeout - try again");
+        
+    } catch (err) {
+        console.log("Deep scan failed:", err.message);
+        currentFile.textContent = "Falling back to regular scan...";
+        await new Promise(r => setTimeout(r, 1000));
+        document.getElementById("deepScanToggle").checked = false;
+        await analyzeURL();
+    }
+}
+ 
 // Local heuristic analysis (fallback)
 function performLocalURLAnalysis(url) {
     let parsed, hostname, score = 0, findings = [];
@@ -93,46 +167,39 @@ function performLocalURLAnalysis(url) {
         return;
     }
     
-    // IP check
     if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) {
         score += 30;
-        findings.push({description: "Uses raw IP address instead of domain", severity: "high"});
+        findings.push({description: "Uses raw IP address instead of domain", severity: "high", type: "ip_url"});
     }
     
-    // Shorteners
     if (/bit\.ly|tinyurl|t\.co|ow\.ly|cutt\.ly|rb\.gy/i.test(url)) {
         score += 25;
-        findings.push({description: "URL shortener hides final destination", severity: "high"});
+        findings.push({description: "URL shortener hides final destination", severity: "high", type: "shortener"});
     }
     
-    // Phishing keywords
     if (/login|verify|secure|bank|password|account|update|confirm|urgent/i.test(url)) {
         score += 20;
-        findings.push({description: "Contains phishing-related keywords", severity: "medium"});
+        findings.push({description: "Contains phishing-related keywords", severity: "medium", type: "phishing_words"});
     }
     
-    // Risky TLDs
     if (/\.(xyz|tk|ml|ga|cf|top|icu)$/i.test(url)) {
         score += 20;
-        findings.push({description: "Uses high-risk TLD", severity: "medium"});
+        findings.push({description: "Uses high-risk TLD", severity: "medium", type: "risky_tld"});
     }
     
-    // No HTTPS
     if (!url.startsWith('https')) {
         score += 15;
-        findings.push({description: "Connection not encrypted (no HTTPS)", severity: "medium"});
+        findings.push({description: "Connection not encrypted (no HTTPS)", severity: "medium", type: "no_https"});
     }
     
-    // Deep path
     if (parsed.pathname.split('/').length > 5) {
         score += 10;
-        findings.push({description: "Unusually deep URL path", severity: "low"});
+        findings.push({description: "Unusually deep URL path", severity: "low", type: "long_path"});
     }
     
-    // Long URL
     if (url.length > 100) {
         score += 5;
-        findings.push({description: "Unusually long URL", severity: "low"});
+        findings.push({description: "Unusually long URL", severity: "low", type: "long_url"});
     }
     
     score = Math.min(score, 100);
@@ -146,7 +213,8 @@ function performLocalURLAnalysis(url) {
         findings: findings,
         explanation: generateLocalExplanation(findings, level, url),
         services: {note: "Local heuristic analysis - backend unavailable"},
-        backend_based: false, // Flag for UI
+        backend_based: false,
+        deep_scan: false,
         scan_time: new Date().toISOString()
     };
     
@@ -170,29 +238,27 @@ function generateLocalExplanation(findings, level, url) {
     text += `\n${map[level]} (Local analysis - backend unavailable)`;
     return text;
 }
-// Toggle between Live and Demo mode
+
 function setScanMode(mode) {
     const liveBtn = document.getElementById('liveModeBtn');
     const demoBtn = document.getElementById('demoModeBtn');
     const demoUrlsSection = document.getElementById('demoUrls');
     
     if (mode === 'live') {
-        // Live mode active
         liveBtn.className = 'px-4 py-2 rounded-lg bg-blue-600 text-white font-medium';
         demoBtn.className = 'px-4 py-2 rounded-lg bg-gray-700 text-gray-300 font-medium hover:bg-gray-600';
         demoUrlsSection.classList.add('hidden');
     } else {
-        // Demo mode active
         demoBtn.className = 'px-4 py-2 rounded-lg bg-blue-600 text-white font-medium';
         liveBtn.className = 'px-4 py-2 rounded-lg bg-gray-700 text-gray-300 font-medium hover:bg-gray-600';
         demoUrlsSection.classList.remove('hidden');
     }
 }
+
 function runDemoURL(demoTypeOrUrl) {
     const input = document.getElementById("urlInput");
     if (!input) return;
 
-    // Demo URL database - for when a key is passed
     const demoURLs = {
         'google-phish': 'https://secure-google-login.xyz/verify?token=abc123&session=fake',
         'paypal-phish': 'http://paypal-alerts-login.com/secure/verify/account',
@@ -201,7 +267,6 @@ function runDemoURL(demoTypeOrUrl) {
         'mixed-signals': 'http://amazon-security-verify.tk/login?urgent=true'
     };
 
-    // Check if it's a key in demoURLs or already a full URL
     const url = demoURLs[demoTypeOrUrl] || demoTypeOrUrl;
     
     if (!url) return;
@@ -209,3 +274,10 @@ function runDemoURL(demoTypeOrUrl) {
     input.value = url;
     analyzeURL();
 }
+// Attach click listener to analyze button
+document.addEventListener("DOMContentLoaded", function() {
+    const btn = document.getElementById("analyzeBtn");
+    if (btn) {
+        btn.addEventListener("click", analyzeURL);
+    }
+});

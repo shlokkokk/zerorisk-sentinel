@@ -233,7 +233,6 @@
     transform: translateX(20px);
   }
     </style>
-<base target="_blank">
 </head>
 <body>
     <canvas id="matrixCanvas" class="matrix-bg"></canvas>
@@ -271,7 +270,7 @@
                 </h1>
                 <p class="text-xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed reveal">
                     A hybrid cybersecurity platform combining client-side analysis with backend-enhanced threat intelligence. 
-                    Features YARA rule scanning, VirusTotal integration, AI-powered explanations, and multi-layered detection for files, URLs, and Android APKs.
+                    Features YARA rule scanning, VirusTotal integration, AI-powered explanations, live browser sandbox analysis, and multi-layered detection for files, URLs, and Android APKs.
                 </p>
 
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12">
@@ -307,7 +306,7 @@
                         ZeroRisk Sentinel is a comprehensive security analysis platform that inspects files, URLs, and Android applications 
                         for malicious indicators before execution. The system uses a hybrid architecture where client-side JavaScript performs 
                         initial analysis, while an optional Python backend provides enhanced threat intelligence through YARA rules, 
-                        VirusTotal lookups, and AI-powered explanations.
+                        VirusTotal lookups, AI-powered explanations, and live browser sandbox analysis.
                     </p>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
@@ -332,7 +331,7 @@
                                 </div>
                                 <h3 class="text-lg font-bold text-white">URL Analyzer</h3>
                             </div>
-                            <p class="text-gray-400 text-sm">Check URLs against Google Safe Browsing, URLHaus, and VirusTotal with SSL/DNS analysis.</p>
+                            <p class="text-gray-400 text-sm">Check URLs against Google Safe Browsing, URLHaus, and VirusTotal with SSL/DNS analysis and optional Deep Scan sandboxing.</p>
                         </div>
 
                         <div class="p-4 bg-gray-800/50 rounded-xl border border-gray-700">
@@ -494,13 +493,13 @@
                 <h2 class="font-orbitron text-3xl font-bold text-center mb-4 reveal">
                     URL Security <span class="gradient-text">Analysis</span>
                 </h2>
-                <p class="text-gray-400 text-center mb-12 reveal">Multi-source threat intelligence with live backend checks</p>
+                <p class="text-gray-400 text-center mb-12 reveal">Multi-source threat intelligence with optional live browser sandboxing</p>
 
                 <div class="analysis-card rounded-2xl p-8 reveal">
                     <p class="text-gray-300 mb-8 leading-relaxed">
                         The URL analyzer performs comprehensive security checks by querying multiple threat intelligence sources 
                         and analyzing technical indicators. When the backend is unavailable, it gracefully falls back to local 
-                        heuristic analysis.
+                        heuristic analysis. The optional Deep Scan feature provides live browser sandbox analysis via urlscan.io.
                     </p>
 
                     <div class="tech-grid">
@@ -538,6 +537,42 @@
                             <h3 class="text-lg font-bold mb-3 text-cyan-400">Redirect Chain</h3>
                             <p class="text-gray-400 text-sm mb-3">Follows HTTP redirects to detect suspicious redirect chains and final destinations.</p>
                             <span class="badge badge-blue">Up to 5 hops</span>
+                        </div>
+                    </div>
+
+                    <!-- Deep Scan Section -->
+                    <div class="mt-8 p-6 bg-purple-900/20 rounded-xl border border-purple-500/30">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-purple-400">Deep Scan (Browser Sandbox)</h3>
+                        </div>
+                        <p class="text-gray-300 mb-4">
+                            The Deep Scan feature submits URLs to urlscan.io for live browser sandbox analysis. This provides:
+                        </p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <ul class="feature-list text-gray-300 text-sm">
+                                <li>Screenshot of rendered page</li>
+                                <li>Network activity monitoring</li>
+                                <li>Console log collection</li>
+                                <li>Server information extraction</li>
+                            </ul>
+                            <ul class="feature-list text-gray-300 text-sm">
+                                <li>Brand impersonation detection</li>
+                                <li>Suspicious domain tracking</li>
+                                <li>Resource loading analysis</li>
+                                <li>DOM hash fingerprinting</li>
+                            </ul>
+                        </div>
+                        <div class="code-example">
+                            <div class="text-purple-400">// Deep Scan Results</div>
+                            <div class="text-gray-300">Network Requests: 47 total</div>
+                            <div class="text-gray-300">Suspicious Domains: 2 detected</div>
+                            <div class="text-gray-300">Screenshot: Captured</div>
+                            <div class="text-green-400">Verdict: CLEAN</div>
                         </div>
                     </div>
 
@@ -686,13 +721,14 @@
                         </div>
                         <p class="text-gray-400 text-sm mb-4">
                             Machine-readable format containing complete scan data including hashes, findings, 
-                            spyware profiles, and metadata for integration with other security tools.
+                            spyware profiles, URL analysis with Deep Scan data, and metadata for integration with other security tools.
                         </p>
                         <ul class="feature-list text-gray-400 text-sm">
                             <li>Complete scan metadata</li>
                             <li>All file hashes (MD5, SHA1, SHA256)</li>
                             <li>Detailed findings with severity</li>
                             <li>VirusTotal results</li>
+                            <li>URL Deep Scan screenshots & network data</li>
                         </ul>
                     </div>
 
@@ -705,12 +741,13 @@
                         </div>
                         <p class="text-gray-400 text-sm mb-4">
                             Professional formatted document with executive summary, threat distribution, 
-                            detailed file analysis, and actionable recommendations.
+                            detailed file analysis, URL security section, and actionable recommendations.
                         </p>
                         <ul class="feature-list text-gray-400 text-sm">
                             <li>Executive summary with security score</li>
                             <li>Threat distribution visualization</li>
                             <li>Per-file detailed breakdown</li>
+                            <li>URL analysis with service checks</li>
                             <li>Security recommendations</li>
                         </ul>
                     </div>
@@ -746,6 +783,7 @@
                                 <li>File hashing & entropy</li>
                                 <li>VirusTotal API integration</li>
                                 <li>URL threat intelligence</li>
+                                <li>URL sandbox analysis (urlscan.io)</li>
                                 <li>AI explanation service (Groq)</li>
                             </ul>
                         </div>
@@ -756,6 +794,7 @@
                                 <li>Google Safe Browsing</li>
                                 <li>VirusTotal (files & URLs)</li>
                                 <li>URLHaus malware DB</li>
+                                <li>urlscan.io (browser sandbox)</li>
                                 <li>Groq AI (Llama 3.3 70B)</li>
                                 <li>WHOIS domain lookup</li>
                             </ul>
@@ -847,7 +886,7 @@
                     </div>
                     <div class="tech-card reveal">
                         <h3 class="text-lg font-bold mb-2 text-yellow-400">Threat Intel</h3>
-                        <p class="text-gray-400 text-sm">VirusTotal, Google Safe Browsing, URLHaus, WHOIS</p>
+                        <p class="text-gray-400 text-sm">VirusTotal, Google Safe Browsing, URLHaus, urlscan.io, WHOIS</p>
                     </div>
                 </div>
             </div>

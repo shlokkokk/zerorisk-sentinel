@@ -287,7 +287,6 @@
     opacity: 0.6;
   }
     </style>
-  <base target="_blank">
 </head>
   <body>
     <!-- Matrix Background Canvas -->
@@ -949,295 +948,498 @@
           });
         }, 5000);
       }
-      function renderURLResults(urlData) {
-          const container = document.getElementById("urlResults");
-          if (!container) return;
-          container.innerHTML = "";
-      
-          // Explanation map for each finding type
-          const findingExplanations = {
-              "ip_url": "IP-based URLs bypass domain reputation checks and hide ownership information, making them common in malicious infrastructure.",
-              "phishing_words": "Words like 'login', 'verify', 'secure', and 'bank' are commonly used in phishing to create urgency and trick users.",
-              "shortener": "URL shorteners hide the final destination, making it easy for attackers to direct users to malicious sites without detection.",
-              "risky_tld": "Domains using .xyz, .tk, .ml and similar TLDs are cheap and often abused for malicious purposes.",
-              "long_path": "Unusually long URL paths can indicate obfuscation or attempts to hide malicious parameters.",
-              "no_https": "Without HTTPS, data transmitted to this site can be intercepted by attackers on the network.",
-              "brand_impersonation": "The URL appears to impersonate a well-known brand to trick users into trusting it."
-          };
+function renderURLResults(urlData) {
+    const container = document.getElementById("urlResults");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const findingExplanations = {
+        "ip_url": "IP-based URLs bypass domain reputation checks and hide ownership information, making them common in malicious infrastructure.",
+        "phishing_words": "Words like 'login', 'verify', 'secure', and 'bank' are commonly used in phishing to create urgency and trick users.",
+        "shortener": "URL shorteners hide the final destination, making it easy for attackers to direct users to malicious sites without detection.",
+        "risky_tld": "Domains using .xyz, .tk, .ml and similar TLDs are cheap and often abused for malicious purposes.",
+        "long_path": "Unusually long URL paths can indicate obfuscation or attempts to hide malicious parameters.",
+        "no_https": "Without HTTPS, data transmitted to this site can be intercepted by attackers on the network.",
+        "brand_impersonation": "The URL appears to impersonate a well-known brand to trick users into trusting it.",
+        "malicious_verdict": "ZeroRisk Sentinel's sandbox detected malicious behavior during actual browser execution.",
+        "suspicious_verdict": "Suspicious patterns were observed when the page was loaded in a sandboxed browser.",
+        "phishing_detected": "The page structure and content match known phishing patterns.",
+        "suspicious_resources": "The page loaded content from domains with poor reputation."
+    };
+    
+    const serviceExplanations = {
+        google_safe_browsing: "Google's database of known malicious URLs",
+        urlhaus: "Community-driven malware URL database",
+        virustotal_url: "Aggregated scan results from 70+ security vendors",
+        ssl: "Certificate validity and security configuration",
+        domain_age: "How long the domain has been registered",
+        redirects: "Chain of redirects to final destination",
+        dns: "Domain name system records and configuration",
+        urlscan_io: "Live sandbox browser analysis via ZeroRisk Sentinel Deep Scan"
+    };
+    
+    urlData.forEach((r, i) => {
+        const card = document.createElement("div");
+        card.className = "analysis-card rounded-xl p-6 mb-4";
+        card.style.opacity = "0";
+    
+        const colors = {safe: "green", low: "blue", medium: "yellow", high: "red", critical: "red"};
+        const color = colors[r.threat_level] || "gray";
+    
+        // Analysis type badge
+        let analysisBadge = '';
+        if (r.deep_scan) {
+            analysisBadge = `<span class="px-2 py-1 bg-purple-500 bg-opacity-20 text-purple-400 text-xs rounded ml-2">🔬 Deep Scan</span>`;
+        } else if (r.backend_based) {
+            analysisBadge = `<span class="px-2 py-1 bg-blue-500 bg-opacity-20 text-blue-400 text-xs rounded ml-2">Backend Analysis</span>`;
+        } else {
+            analysisBadge = `<span class="px-2 py-1 bg-gray-600 bg-opacity-20 text-gray-400 text-xs rounded ml-2">Local Analysis</span>`;
+        }
+    
+        //  THREAT INTELLIGENCE SECTION (Shows for BOTH normal AND deep scan) 
+        let threatIntelHtml = "";
         
-          // Service status explanations
-          const serviceExplanations = {
-              google_safe_browsing: "Google's database of known malicious URLs",
-              urlhaus: "Community-driven malware URL database",
-              virustotal_url: "Aggregated scan results from 70+ security vendors",
-              ssl: "Certificate validity and security configuration",
-              domain_age: "How long the domain has been registered",
-              redirects: "Chain of redirects to final destination",
-              dns: "Domain name system records and configuration"
-          };
+        // Google Safe Browsing
+        if (r.services?.google_safe_browsing?.available) {
+            const gsb = r.services.google_safe_browsing;
+            const statusClass = gsb.threat_found ? "bg-red-500 bg-opacity-20 border-red-500" : "bg-green-500 bg-opacity-10 border-green-500";
+            const icon = gsb.threat_found ? "🚨" : "✅";
+            const text = gsb.threat_found ? `<span class="text-red-400 font-bold">THREAT: ${gsb.threat_type}</span>` : '<span class="text-green-400">Safe</span>';
+            
+            threatIntelHtml += `
+                <div class="p-3 rounded-lg ${statusClass} border bg-opacity-20 mb-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-300 text-sm font-semibold">🔒 Google Safe Browsing</span>
+                        ${icon}
+                    </div>
+                    <div class="mt-1">${text}</div>
+                    <div class="text-xs text-gray-500 mt-1">${serviceExplanations.google_safe_browsing}</div>
+                </div>
+            `;
+        }
         
-          urlData.forEach((r, i) => {
-              const card = document.createElement("div");
-              card.className = "analysis-card rounded-xl p-6 mb-4";
-              card.style.opacity = "0"; // For animation
-          
-              const colors = {safe: "green", low: "blue", medium: "yellow", high: "red", critical: "red"};
-              const color = colors[r.threat_level] || "gray";
-          
-              // Analysis type badge
-              const analysisBadge = r.backend_based 
-                  ? `<span class="px-2 py-1 bg-blue-500 bg-opacity-20 text-blue-400 text-xs rounded ml-2">Backend Analysis</span>`
-                  : `<span class="px-2 py-1 bg-gray-600 bg-opacity-20 text-gray-400 text-xs rounded ml-2">Local Analysis</span>`;
-          
-              // Build threat intel section
-              let threatIntelHtml = "";
-              
-              // Google Safe Browsing
-              if (r.services?.google_safe_browsing?.available) {
-                  const gsb = r.services.google_safe_browsing;
-                  const statusClass = gsb.threat_found ? "bg-red-500 bg-opacity-20 border-red-500" : "bg-green-500 bg-opacity-10 border-green-500";
-                  const icon = gsb.threat_found ? "🚨" : "✅";
-                  const text = gsb.threat_found ? `<span class="text-red-400 font-bold">THREAT: ${gsb.threat_type}</span>` : '<span class="text-green-400">Safe</span>';
-                  
-                  threatIntelHtml += `
-                      <div class="p-3 rounded-lg ${statusClass} border bg-opacity-20 mb-2">
-                          <div class="flex items-center justify-between">
-                              <span class="text-gray-300 text-sm font-semibold">🔒 Google Safe Browsing</span>
-                              ${icon}
-                          </div>
-                          <div class="mt-1">${text}</div>
-                          <div class="text-xs text-gray-500 mt-1">${serviceExplanations.google_safe_browsing}</div>
-                      </div>
-                  `;
-              }
+        // URLHaus
+        if (r.services?.urlhaus?.available) {
+            const uh = r.services.urlhaus;
+            const statusClass = uh.listed ? "bg-red-500 bg-opacity-20 border-red-500" : "bg-green-500 bg-opacity-10 border-green-500";
+            const icon = uh.listed ? "🚨" : "✅";
+            const text = uh.listed ? `<span class="text-red-400 font-bold">LISTED: ${uh.threat || 'Malware'}</span>` : '<span class="text-green-400">Not Listed</span>';
             
-              // URLHaus
-              if (r.services?.urlhaus?.available) {
-                  const uh = r.services.urlhaus;
-                  const statusClass = uh.listed ? "bg-red-500 bg-opacity-20 border-red-500" : "bg-green-500 bg-opacity-10 border-green-500";
-                  const icon = uh.listed ? "🚨" : "✅";
-                  const text = uh.listed ? `<span class="text-red-400 font-bold">LISTED: ${uh.threat || 'Malware'}</span>` : '<span class="text-green-400">Not Listed</span>';
-                  
-                  threatIntelHtml += `
-                      <div class="p-3 rounded-lg ${statusClass} border bg-opacity-20 mb-2">
-                          <div class="flex items-center justify-between">
-                              <span class="text-gray-300 text-sm font-semibold">🛡️ URLHaus Database</span>
-                              ${icon}
-                          </div>
-                          <div class="mt-1">${text}</div>
-                          <div class="text-xs text-gray-500 mt-1">${serviceExplanations.urlhaus}</div>
-                      </div>
-                  `;
-              }
+            threatIntelHtml += `
+                <div class="p-3 rounded-lg ${statusClass} border bg-opacity-20 mb-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-300 text-sm font-semibold">🛡️ URLHaus Database</span>
+                        ${icon}
+                    </div>
+                    <div class="mt-1">${text}</div>
+                    <div class="text-xs text-gray-500 mt-1">${serviceExplanations.urlhaus}</div>
+                </div>
+            `;
+        }
+        
+        // VirusTotal
+        if (r.services?.virustotal_url?.available) {
+            const vt = r.services.virustotal_url;
+            let statusClass, icon, text;
             
-              // VirusTotal
-              if (r.services?.virustotal_url?.available && r.services.virustotal_url.found) {
-                  const vt = r.services.virustotal_url;
-                  let statusClass, icon, text;
-                  
-                  if (vt.malicious >= 5) {
-                      statusClass = "bg-red-500 bg-opacity-20 border-red-500";
-                      icon = "🚨";
-                      text = `<span class="text-red-500 font-bold">${vt.malicious}/${vt.total} vendors flagged this URL!</span>`;
-                  } else if (vt.malicious > 0) {
-                      statusClass = "bg-yellow-500 bg-opacity-20 border-yellow-500";
-                      icon = "⚠️";
-                      text = `<span class="text-yellow-400 font-semibold">${vt.malicious}/${vt.total} vendors flagged this URL</span>`;
-                  } else {
-                      statusClass = "bg-green-500 bg-opacity-10 border-green-500";
-                      icon = "✅";
-                      text = `<span class="text-green-400">Clean - 0 detections</span>`;
-                  }
-                  
-                  threatIntelHtml += `
-                      <div class="p-3 rounded-lg ${statusClass} border bg-opacity-20 mb-2">
-                          <div class="flex items-center justify-between">
-                              <span class="text-gray-300 text-sm font-semibold">🦠 VirusTotal</span>
-                              ${icon}
-                          </div>
-                          <div class="mt-1">${text}</div>
-                          <div class="text-xs text-gray-500 mt-1">${serviceExplanations.virustotal_url}</div>
-                      </div>
-                  `;
-              }
+            if (vt.malicious >= 5) {
+                statusClass = "bg-red-500 bg-opacity-20 border-red-500";
+                icon = "🚨";
+                text = `<span class="text-red-500 font-bold">${vt.malicious}/${vt.total || 70} vendors flagged this URL!</span>`;
+            } else if (vt.malicious > 0) {
+                statusClass = "bg-yellow-500 bg-opacity-20 border-yellow-500";
+                icon = "⚠️";
+                text = `<span class="text-yellow-400 font-semibold">${vt.malicious}/${vt.total || 70} vendors flagged this URL</span>`;
+            } else {
+                statusClass = "bg-green-500 bg-opacity-10 border-green-500";
+                icon = "✅";
+                text = `<span class="text-green-400">Clean - 0 detections</span>`;
+            }
             
-              // Technical details section
-              let techDetailsHtml = "";
-              
-              // SSL
-              if (r.services?.ssl?.available) {
-                  const ssl = r.services.ssl;
-                  let sslIcon, sslText, sslClass;
-                  
-                  if (!ssl.has_ssl) {
-                      sslIcon = "❌";
-                      sslText = '<span class="text-red-400">No HTTPS</span>';
-                      sslClass = "bg-red-500 bg-opacity-10 border-red-500";
-                  } else if (ssl.suspicious) {
-                      sslIcon = "⚠️";
-                      sslText = `<span class="text-yellow-400">Issues: ${ssl.self_signed ? 'Self-signed' : 'Expiring soon'}</span>`;
-                      sslClass = "bg-yellow-500 bg-opacity-10 border-yellow-500";
-                  } else {
-                      sslIcon = "🔒";
-                      sslText = `<span class="text-green-400">Valid (${ssl.days_left} days)</span>`;
-                      sslClass = "bg-green-500 bg-opacity-10 border-green-500";
-                  }
-                  
-                  techDetailsHtml += `
-                      <div class="p-2 rounded ${sslClass} border text-xs">
-                          <div class="text-gray-400 mb-1">SSL Certificate</div>
-                          <div class="font-semibold">${sslIcon} ${sslText}</div>
-                      </div>
-                  `;
-              }
+            threatIntelHtml += `
+                <div class="p-3 rounded-lg ${statusClass} border bg-opacity-20 mb-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-300 text-sm font-semibold">🦠 VirusTotal</span>
+                        ${icon}
+                    </div>
+                    <div class="mt-1">${text}</div>
+                    <div class="text-xs text-gray-500 mt-1">${serviceExplanations.virustotal_url}</div>
+                </div>
+            `;
+        }
+
+        // ZeroRisk Sentinel Deep Scan service badge
+        if (r.services?.urlscan_io?.available || r.deep_scan) {
+            threatIntelHtml += `
+                <div class="p-3 rounded-lg bg-purple-500 bg-opacity-10 border-purple-500 border bg-opacity-20 mb-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-300 text-sm font-semibold">🔬 ZeroRisk Sentinel Deep Scan</span>
+                        ✅
+                    </div>
+                    <div class="mt-1"><span class="text-purple-400">Sandbox analysis completed</span></div>
+                    <div class="text-xs text-gray-500 mt-1">${serviceExplanations.urlscan_io}</div>
+                </div>
+            `;
+        }
+        
+        //  DEEP SCAN / SANDBOX SECTION 
+let deepScanHtml = "";
+        if (r.deep_scan && r.urlscan_data) {
+            const us = r.urlscan_data;
+            const v = us.verdicts || {};
             
-              // Domain Age
-              if (r.services?.domain_age?.available) {
-                  const age = r.services.domain_age;
-                  const ageClass = age.suspicious ? "bg-red-500 bg-opacity-10 border-red-500 text-red-400" : "bg-gray-700 border-gray-600 text-gray-300";
-                  
-                  techDetailsHtml += `
-                      <div class="p-2 rounded ${ageClass} border text-xs">
-                          <div class="text-gray-400 mb-1">Domain Age</div>
-                          <div class="font-semibold">${age.suspicious ? '⚠️ ' : ''}${Math.round(age.days / 365.25 * 10) / 10} years</div>
-                      </div>
-                  `;
-              }
+            // Verdict badges
+            let verdictBadges = "";
+            if (v.malicious) {
+                verdictBadges += `<span class="px-2 py-1 bg-red-500 bg-opacity-30 text-red-400 text-xs rounded mr-2">🚨 MALICIOUS</span>`;
+            }
+            if (v.suspicious) {
+                verdictBadges += `<span class="px-2 py-1 bg-yellow-500 bg-opacity-30 text-yellow-400 text-xs rounded mr-2">⚠️ SUSPICIOUS</span>`;
+            }
+            if (v.phishing) {
+                verdictBadges += `<span class="px-2 py-1 bg-orange-500 bg-opacity-30 text-orange-400 text-xs rounded mr-2">🎣 PHISHING</span>`;
+            }
+            if (!v.malicious && !v.suspicious && !v.phishing) {
+                verdictBadges += `<span class="px-2 py-1 bg-green-500 bg-opacity-20 text-green-400 text-xs rounded mr-2">✅ CLEAN</span>`;
+            }
             
-              // Redirects
-              if (r.services?.redirects?.available) {
-                  const red = r.services.redirects;
-                  const redClass = red.suspicious ? "bg-yellow-500 bg-opacity-10 border-yellow-500" : "bg-gray-700 border-gray-600";
-                  
-                  techDetailsHtml += `
-                      <div class="p-2 rounded ${redClass} border text-xs">
-                          <div class="text-gray-400 mb-1">Redirects</div>
-                          <div class="font-semibold ${red.suspicious ? 'text-yellow-400' : 'text-gray-300'}">${red.count} hop${red.count !== 1 ? 's' : ''}</div>
-                      </div>
-                  `;
-              }
+            // Network stats
+            const ns = us.network_stats || {};
+            const networkSection = `
+                <div class="mb-4">
+                    <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">🌐 Network Activity</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div class="p-3 rounded-lg bg-gray-800 border border-gray-700 text-center">
+                            <div class="text-2xl font-bold text-blue-400">${ns.total_requests || 0}</div>
+                            <div class="text-xs text-gray-500">Total Requests</div>
+                        </div>
+                        <div class="p-3 rounded-lg ${ns.suspicious_domains > 0 ? 'bg-red-900/30 border-red-500' : 'bg-gray-800 border-gray-700'} text-center">
+                            <div class="text-2xl font-bold ${ns.suspicious_domains > 0 ? 'text-red-400' : 'text-green-400'}">${ns.suspicious_domains || 0}</div>
+                            <div class="text-xs text-gray-500">Suspicious Domains</div>
+                        </div>
+                        <div class="p-3 rounded-lg bg-gray-800 border border-gray-700 text-center">
+                            <div class="text-2xl font-bold text-purple-400">${ns.unique_domains || 0}</div>
+                            <div class="text-xs text-gray-500">Unique Domains</div>
+                        </div>
+                        <div class="p-3 rounded-lg bg-gray-800 border border-gray-700 text-center">
+                            <div class="text-2xl font-bold text-cyan-400">${ns.certificates || 0}</div>
+                            <div class="text-xs text-gray-500">Certificates</div>
+                        </div>
+                    </div>
+                </div>
+            `;
             
-              // DNS
-              if (r.services?.dns?.available) {
-                  const dns = r.services.dns;
-                  techDetailsHtml += `
-                      <div class="p-2 rounded bg-gray-700 border-gray-600 border text-xs">
-                          <div class="text-gray-400 mb-1">DNS Records</div>
-                          <div class="font-semibold text-gray-300">
-                              A:${dns.has_a ? '✓' : '✗'} MX:${dns.has_mx ? '✓' : '✗'} SPF:${dns.has_spf ? '✓' : '✗'}
-                          </div>
-                      </div>
-                  `;
-              }
+            // Suspicious domains list
+            let suspiciousDomainsSection = '';
+            if (us.suspicious_domains && us.suspicious_domains.length > 0) {
+                suspiciousDomainsSection = `
+                    <div class="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-500/50">
+                        <h4 class="text-red-400 text-sm font-semibold mb-2">⚠️ Page tried to load resources from:</h4>
+                        <ul class="space-y-1">
+                            ${us.suspicious_domains.map(d => `<li class="text-gray-300 text-sm font-mono">• ${d}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
             
-              // Build detailed findings with explanations
-              let findingsHtml = "";
-              if (r.findings && r.findings.length > 0) {
-                  findingsHtml = r.findings.map(f => {
-                      const explanation = findingExplanations[f.type] || "This pattern matches known suspicious behavior.";
-                      const severityColor = f.severity === 'high' ? 'text-red-400 border-red-500' : 
-                                            f.severity === 'medium' ? 'text-yellow-400 border-yellow-500' : 
-                                            'text-gray-400 border-gray-600';
-                      
-                      return `
-                          <div class="p-3 rounded-lg border ${severityColor} bg-opacity-10 bg-black mb-2">
-                              <div class="flex items-start">
-                                  <span class="mr-2">${f.severity === 'high' ? '🚨' : f.severity === 'medium' ? '⚠️' : 'ℹ️'}</span>
-                                  <div>
-                                      <div class="font-semibold ${severityColor.split(' ')[0]}">${f.description}</div>
-                                      <div class="text-xs text-gray-500 mt-1">${explanation}</div>
-                                  </div>
-                              </div>
-                          </div>
-                      `;
-                  }).join("");
-              } else {
-                  findingsHtml = `<div class="p-3 rounded-lg border border-green-500 bg-green-500 bg-opacity-10 text-green-400">✅ No suspicious indicators detected</div>`;
-              }
+            // Brand detection
+            let brandSection = '';
+            if (us.brands_detected && us.brands_detected.length > 0) {
+                brandSection = `
+                    <div class="mb-4">
+                        <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">🏷️ Brands Detected</h4>
+                        <div class="flex flex-wrap gap-2">
+                            ${us.brands_detected.map(b => `<span class="px-3 py-1 bg-blue-900/30 border border-blue-500/50 text-blue-400 text-sm rounded-full">${b}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
             
-              // Final explanation section (like old style)
-              const explanationSection = `
-                  <div class="mt-4 p-4 rounded-lg bg-black/80 border border-blue-500/40">
-                      <h4 class="text-blue-400 font-semibold mb-2 flex items-center">
-                          <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"/>
-                          </svg>
-                          Analysis Summary
-                      </h4>
-                      <pre class="text-gray-300 text-sm whitespace-pre-wrap font-mono leading-relaxed">${r.explanation}</pre>
-                      <p class="text-xs text-gray-500 mt-2">
-                          ${r.backend_based ? 'Backend threat intelligence analysis' : 'Local heuristic analysis'} • Not definitive proof of malicious intent
-                      </p>
-                  </div>
-              `;
-                
-              card.innerHTML = `
-                  <!-- Header -->
-                  <div class="flex flex-col md:flex-row md:justify-between md:items-start mb-4 gap-2">
-                      <div class="flex-1 min-w-0">
-                          <h3 class="text-lg font-semibold text-white truncate">🔗 ${r.url}</h3>
-                          <p class="text-gray-400 text-sm">${r.domain || ''}</p>
-                      </div>
-                      <div class="flex items-center flex-shrink-0">
-                          <span class="threat-badge threat-${r.threat_level}">${r.threat_level.toUpperCase()}</span>
-                          ${analysisBadge}
-                      </div>
-                  </div>
-                
-                  <!-- Score & Time -->
-                  <div class="flex items-center justify-between mb-4 p-3 rounded-lg bg-black/50">
-                      <div>
-                          <span class="text-gray-400 text-sm">Threat Score</span>
-                          <div class="text-2xl font-bold text-${color}-400">${r.threat_score}<span class="text-lg text-gray-500">/100</span></div>
-                      </div>
-                      <div class="text-right">
-                          <span class="text-gray-400 text-sm">Analyzed</span>
-                          <div class="text-gray-300 text-sm">${new Date(r.scan_time).toLocaleString()}</div>
-                      </div>
-                  </div>
-                
-                  <!-- Threat Intelligence -->
-                  ${threatIntelHtml ? `
-                      <div class="mb-4">
-                          <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">Threat Intelligence</h4>
-                          ${threatIntelHtml}
-                      </div>
-                  ` : ''}
+            // Server info
+            const serverSection = `
+                <div class="mb-4">
+                    <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">🖥️ Server Info</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                        <div class="p-2 rounded bg-gray-800"><span class="text-gray-500">IP:</span> <span class="text-gray-300 font-mono">${us.ip || 'unknown'}</span></div>
+                        <div class="p-2 rounded bg-gray-800"><span class="text-gray-500">Country:</span> <span class="text-gray-300">${us.country || 'unknown'}</span></div>
+                        <div class="p-2 rounded bg-gray-800"><span class="text-gray-500">Server:</span> <span class="text-gray-300 font-mono">${us.server || 'unknown'}</span></div>
+                    </div>
+                </div>
+            `;
+            
+            // DOM Hash
+            const domSection = us.dom_hash ? `
+                <div class="mb-4">
+                    <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">#️⃣ DOM Hash</h4>
+                    <div class="p-2 rounded bg-gray-900 border border-gray-700">
+                        <code class="text-xs text-gray-400 font-mono break-all">${us.dom_hash}</code>
+                    </div>
+                </div>
+            ` : '';
+            
+            let visualSection = '';
+            const hasScreenshot = us.screenshot;
+            const hasConsole = us.console_logs && us.console_logs.length > 0;
+            
+            if (hasScreenshot || hasConsole) {
+                const formattedLogs = hasConsole ? us.console_logs.map(log => {
+                    let logText = '';
+                    if (typeof log === 'object' && log !== null) {
+                        const msg = log.message || log;
+                        if (typeof msg === 'object') {
+                            logText = msg.text || JSON.stringify(log);
+                        } else {
+                            logText = String(msg);
+                        }
+                    } else {
+                        logText = String(log);
+                    }
+                    let colorClass = 'text-gray-400';
+                    const level = (log.message && log.message.level) || log.level;
+                    if (level === 'error') colorClass = 'text-red-400';
+                    if (level === 'warning') colorClass = 'text-yellow-400';
                     
-                  <!-- Technical Details -->
-                  ${techDetailsHtml ? `
-                      <div class="mb-4">
-                          <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">Technical Details</h4>
-                          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                              ${techDetailsHtml}
-                          </div>
-                      </div>
-                  ` : ''}
+                    return `<div class="${colorClass} mb-1 whitespace-nowrap px-1 hover:bg-gray-800 rounded cursor-default" title="${logText}">${logText}</div>`;
+                }).join('') : '';
+                
+                visualSection = `
+                    <div class="mb-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 h-80">
+                            ${hasScreenshot ? `
+                            <div class="h-full">
+                                <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">Screenshot</h4>
+                                <div class="relative group cursor-pointer h-[calc(100%-2rem)]" onclick="window.open('${us.screenshot}', '_blank')">
+                                    <img src="${us.screenshot}" alt="Page Screenshot" class="w-full h-full object-contain bg-gray-900 rounded-lg border border-gray-700 hover:border-purple-500 transition-all">
+                                    <div class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                                        <span class="text-white font-semibold">Click to Enlarge</span>
+                                    </div>
+                                </div>
+                            </div>
+                            ` : ''}
+                            ${hasConsole ? `
+                            <div class="h-full flex flex-col">
+                                <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">Console Logs (${us.console_logs.length})</h4>
+                                <div class="flex-1 overflow-auto bg-black rounded-lg p-2 text-xs font-mono border border-gray-700" style="scrollbar-width: thin; scrollbar-color: #00d4ff #1a1a1a;">
+                                    <div class="min-w-max">
+                                        ${formattedLogs}
+                                    </div>
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            deepScanHtml = `
+                <div class="mb-6 p-4 rounded-lg bg-purple-900/20 border border-purple-500/50">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-purple-400 font-semibold flex items-center text-lg">
+                            <span class="mr-2">🔬</span> ZeroRisk Sentinel Sandbox Analysis
+                        </h4>
+                        <div>${verdictBadges}</div>
+                    </div>
                     
-                  <!-- Findings -->
-                  <div class="mb-2">
-                      <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">Detected Indicators (${r.findings?.length || 0})</h4>
-                      ${findingsHtml}
-                  </div>
+                    <!-- Network Stats -->
+                    ${networkSection}
+                    
+                    <!-- Screenshot & Console Side-by-Side -->
+                    ${visualSection}
+                    
+                    <!-- Server Info -->
+                    ${serverSection}
+                    
+                    <!-- Suspicious Domains -->
+                    ${suspiciousDomainsSection}
+                    
+                    <!-- Brands -->
+                    ${brandSection}
+                    
+                    <!-- DOM Hash -->
+                    ${domSection}
+                </div>
+            `;
+        }
+        
+        //  TECHNICAL DETAILS SECTION (Shows for BOTH normal AND deep scan) 
+        let techDetailsHtml = "";
+        
+        if (r.services?.ssl?.available) {
+            const ssl = r.services.ssl;
+            let sslIcon, sslText, sslClass;
+            
+            if (!ssl.has_ssl) {
+                sslIcon = "❌";
+                sslText = '<span class="text-red-400">No HTTPS</span>';
+                sslClass = "bg-red-500 bg-opacity-10 border-red-500";
+            } else if (ssl.suspicious) {
+                sslIcon = "⚠️";
+                sslText = `<span class="text-yellow-400">Issues: ${ssl.self_signed ? 'Self-signed' : 'Expiring soon'}</span>`;
+                sslClass = "bg-yellow-500 bg-opacity-10 border-yellow-500";
+            } else {
+                sslIcon = "🔒";
+                sslText = `<span class="text-green-400">Valid (${ssl.days_left} days)</span>`;
+                sslClass = "bg-green-500 bg-opacity-10 border-green-500";
+            }
+            
+            techDetailsHtml += `
+                <div class="p-2 rounded ${sslClass} border text-xs">
+                    <div class="text-gray-400 mb-1">SSL Certificate</div>
+                    <div class="font-semibold">${sslIcon} ${sslText}</div>
+                </div>
+            `;
+        }
+        
+        if (r.services?.domain_age?.available) {
+            const age = r.services.domain_age;
+            const ageClass = age.suspicious ? "bg-red-500 bg-opacity-10 border-red-500 text-red-400" : "bg-gray-700 border-gray-600 text-gray-300";
+            
+            techDetailsHtml += `
+                <div class="p-2 rounded ${ageClass} border text-xs">
+                    <div class="text-gray-400 mb-1">Domain Age</div>
+                    <div class="font-semibold">${age.suspicious ? '⚠️ ' : ''}${Math.round(age.days / 365.25 * 10) / 10} years</div>
+                </div>
+            `;
+        }
+        
+        if (r.services?.redirects?.available) {
+            const red = r.services.redirects;
+            const redClass = red.suspicious ? "bg-yellow-500 bg-opacity-10 border-yellow-500" : "bg-gray-700 border-gray-600";
+            
+            techDetailsHtml += `
+                <div class="p-2 rounded ${redClass} border text-xs">
+                    <div class="text-gray-400 mb-1">Redirects</div>
+                    <div class="font-semibold ${red.suspicious ? 'text-yellow-400' : 'text-gray-300'}">${red.count} hop${red.count !== 1 ? 's' : ''}</div>
+                </div>
+            `;
+        }
+        
+        if (r.services?.dns?.available) {
+            const dns = r.services.dns;
+            techDetailsHtml += `
+                <div class="p-2 rounded bg-gray-700 border-gray-600 border text-xs">
+                    <div class="text-gray-400 mb-1">DNS Records</div>
+                    <div class="font-semibold text-gray-300">
+                        A:${dns.has_a ? '✓' : '✗'} MX:${dns.has_mx ? '✓' : '✗'} SPF:${dns.has_spf ? '✓' : '✗'}
+                    </div>
+                </div>
+            `;
+        }
+        
+        //  DETECTED INDICATORS 
+        let findingsHtml = "";
+        if (r.findings && r.findings.length > 0) {
+            findingsHtml = r.findings.map(f => {
+                const explanation = findingExplanations[f.type] || "This pattern matches known suspicious behavior.";
+                const severityColor = f.severity === 'high' || f.severity === 'critical' ? 'text-red-400 border-red-500' : 
+                                    f.severity === 'medium' ? 'text-yellow-400 border-yellow-500' : 
+                                    'text-gray-400 border-gray-600';
                 
-                  <!-- Explanation -->
-                  ${explanationSection}
-              `;
-                
-              container.appendChild(card);
-                
-              // Animate in
-              setTimeout(() => {
-                  anime({
-                      targets: card,
-                      opacity: [0, 1],
-                      translateY: [30, 0],
-                      duration: 600,
-                      easing: "easeOutQuart"
-                  });
-              }, i * 100);
-          });
-      }
+                return `
+                    <div class="p-3 rounded-lg border ${severityColor} bg-opacity-10 bg-black mb-2">
+                        <div class="flex items-start">
+                            <span class="mr-2">${f.severity === 'high' || f.severity === 'critical' ? '🚨' : f.severity === 'medium' ? '⚠️' : 'ℹ️'}</span>
+                            <div>
+                                <div class="font-semibold ${severityColor.split(' ')[0]}">${f.description}</div>
+                                <div class="text-xs text-gray-500 mt-1">${explanation}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        } else {
+            findingsHtml = `<div class="p-3 rounded-lg border border-green-500 bg-green-500 bg-opacity-10 text-green-400">✅ No suspicious indicators detected</div>`;
+        }
+        
+        //  ANALYSIS SUMMARY 
+        const explanationSection = `
+            <div class="mt-4 p-4 rounded-lg bg-black/80 border border-blue-500/40">
+                <h4 class="text-blue-400 font-semibold mb-2 flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"/>
+                    </svg>
+                    Analysis Summary
+                </h4>
+                <pre class="text-gray-300 text-sm whitespace-pre-wrap font-mono leading-relaxed">${r.explanation || 'No explanation available.'}</pre>
+                <p class="text-xs text-gray-500 mt-2">
+                    ${r.deep_scan ? '🔬 Deep Scan: Backend threat intelligence + ZeroRisk Sentinel Sandbox Analysis' : (r.backend_based ? '🔍 Backend Analysis: Google Safe Browsing, URLHaus, VirusTotal, SSL, DNS' : '💻 Local Analysis: Heuristic pattern matching')} • Not definitive proof of malicious intent
+                </p>
+            </div>
+        `;
+        
+        //  BUILD FINAL CARD 
+        card.innerHTML = `
+            <!-- Header -->
+            <div class="flex flex-col md:flex-row md:justify-between md:items-start mb-4 gap-2">
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-lg font-semibold text-white truncate">🔗 ${r.url}</h3>
+                    <p class="text-gray-400 text-sm">${r.domain || ''}</p>
+                </div>
+                <div class="flex items-center flex-shrink-0">
+                    <span class="threat-badge threat-${r.threat_level}">${r.threat_level.toUpperCase()}</span>
+                    ${analysisBadge}
+                </div>
+            </div>
+            
+            <!-- Score & Time -->
+            <div class="flex items-center justify-between mb-4 p-3 rounded-lg bg-black/50">
+                <div>
+                    <span class="text-gray-400 text-sm">Threat Score</span>
+                    <div class="text-2xl font-bold text-${color}-400">${r.threat_score}<span class="text-lg text-gray-500">/100</span></div>
+                </div>
+                <div class="text-right">
+                    <span class="text-gray-400 text-sm">Analyzed</span>
+                    <div class="text-gray-300 text-sm">${new Date(r.scan_time).toLocaleString()}</div>
+                </div>
+            </div>
+            
+            <!-- DEEP SCAN SECTION (Only if deep_scan is true) -->
+            ${deepScanHtml}
+            
+            <!-- THREAT INTELLIGENCE (Shows for BOTH regular AND deep scan) -->
+            <div class="mb-4">
+                <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">🛡️ Threat Intelligence</h4>
+                ${threatIntelHtml || `
+                    <div class="p-3 rounded-lg bg-gray-800 border border-gray-700 text-gray-400 text-sm">
+                        No additional threat intelligence data available
+                    </div>
+                `}
+            </div>
+            
+            <!-- TECHNICAL DETAILS -->
+            ${techDetailsHtml ? `
+                <div class="mb-4">
+                    <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">Technical Details</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        ${techDetailsHtml}
+                    </div>
+                </div>
+            ` : ''}
+            
+            <!-- DETECTED INDICATORS -->
+            <div class="mb-2">
+                <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">Detected Indicators (${r.findings?.length || 0})</h4>
+                ${findingsHtml}
+            </div>
+            
+            <!-- EXPLANATION -->
+            ${explanationSection}
+        `;
+        
+        container.appendChild(card);
+        
+        // Animate in
+        setTimeout(() => {
+            anime({
+                targets: card,
+                opacity: [0, 1],
+                translateY: [30, 0],
+                duration: 600,
+                easing: "easeOutQuart"
+            });
+        }, i * 100);
+    });
+}
       // Initialize everything when DOM is loaded
       document.addEventListener("DOMContentLoaded", () => {
         

@@ -417,6 +417,22 @@
                     class="w-full max-w-md mx-auto rounded-lg bg-black border border-green-400/50 text-green-400 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-400 mb-4 font-mono"
                   />
                 </div>
+                
+                <!-- Deep Scan Toggle -->
+                <div class="flex items-center justify-center gap-3 mb-4">
+                  <label class="flex items-center gap-2 cursor-pointer group">
+                    <div class="relative">
+                      <input type="checkbox" id="deepScanToggle" class="sr-only peer">
+                      <div class="w-12 h-6 bg-gray-700 rounded-full peer peer-checked:bg-purple-600 transition-all duration-300"></div>
+                      <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 peer-checked:translate-x-6"></div>
+                    </div>
+                    <span class="text-gray-400 text-sm group-hover:text-purple-400 transition-colors">
+                      🔬 Deep Scan (Sandbox)
+                    </span>
+                  </label>
+                  <span class="text-xs text-gray-500" title="Uses urlscan.io to actually visit the URL in a sandboxed browser">ⓘ</span>
+                </div>
+                
                 <button
                   id="analyzeBtn"
                   class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 glow"
@@ -461,50 +477,122 @@
                   Click a sample to auto-scan
                 </p>
 
-<div class="space-y-3">
-  <!-- SAFE -->
-  <button onclick="runDemoURL('https://github.com')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-green-500/60 text-green-400 hover:bg-green-500/20 hover:border-green-500 text-left transition-all duration-200 shadow-lg shadow-green-500/10">
-    <span class="font-mono text-sm">github.com</span>
-    <span class="text-xs text-gray-500 block mt-1">Safe - HTTPS, valid SSL, old domain</span>
-  </button>
+<div class="space-y-6">
+  
+  <!-- SAFE URLs -->
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <span class="w-2 h-2 rounded-full bg-green-400"></span>
+      <h4 class="text-green-400 text-sm font-semibold uppercase tracking-wider">Safe URLs</h4>
+      <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">Low Risk</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <button onclick="runDemoURL('https://github.com')" class="group p-4 bg-gray-900/80 rounded-xl border border-green-500/40 text-left transition-all duration-300 hover:bg-green-500/10 hover:border-green-500 hover:shadow-lg hover:shadow-green-500/20 hover:-translate-y-0.5">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-mono text-sm text-green-400 group-hover:text-green-300">github.com</span>
+          <span class="text-green-400 text-xs">✓</span>
+        </div>
+        <span class="text-xs text-gray-500 group-hover:text-gray-400">HTTPS • Valid SSL • 15+ years old</span>
+      </button>
 
-  <button onclick="runDemoURL('https://stackoverflow.com')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-green-500/60 text-green-400 hover:bg-green-500/20 hover:border-green-500 text-left transition-all duration-200 shadow-lg shadow-green-500/10">
-    <span class="font-mono text-sm">stackoverflow.com</span>
-    <span class="text-xs text-gray-500 block mt-1">Safe - Enterprise SSL, DNSSEC</span>
-  </button>
+      <button onclick="runDemoURL('https://stackoverflow.com')" class="group p-4 bg-gray-900/80 rounded-xl border border-green-500/40 text-left transition-all duration-300 hover:bg-green-500/10 hover:border-green-500 hover:shadow-lg hover:shadow-green-500/20 hover:-translate-y-0.5">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-mono text-sm text-green-400 group-hover:text-green-300">stackoverflow.com</span>
+          <span class="text-green-400 text-xs">✓</span>
+        </div>
+        <span class="text-xs text-gray-500 group-hover:text-gray-400">Enterprise SSL • DNSSEC • Trusted</span>
+      </button>
+    </div>
+  </div>
 
-  <!-- MEDIUM -->
-  <button onclick="runDemoURL('http://neverssl.com')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-yellow-500/60 text-yellow-400 hover:bg-yellow-500/20 hover:border-yellow-500 text-left transition-all duration-200 shadow-lg shadow-yellow-500/10">
-    <span class="font-mono text-sm">neverssl.com</span>
-    <span class="text-xs text-gray-500 block mt-1">HTTP only - no encryption</span>
-  </button>
+  <!-- MEDIUM RISK -->
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+      <h4 class="text-yellow-400 text-sm font-semibold uppercase tracking-wider">Medium Risk</h4>
+      <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">Caution</span>
+    </div>
+    <div class="grid grid-cols-1 gap-3">
+      <button onclick="runDemoURL('http://neverssl.com')" class="group p-4 bg-gray-900/80 rounded-xl border border-yellow-500/40 text-left transition-all duration-300 hover:bg-yellow-500/10 hover:border-yellow-500 hover:shadow-lg hover:shadow-yellow-500/20 hover:-translate-y-0.5">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-mono text-sm text-yellow-400 group-hover:text-yellow-300">neverssl.com</span>
+          <span class="text-yellow-400 text-xs">⚠️</span>
+        </div>
+        <span class="text-xs text-gray-500 group-hover:text-gray-400">HTTP only • No encryption • Data vulnerable</span>
+      </button>
+    </div>
+  </div>
 
-  <!-- HIGH -->
-  <button onclick="runDemoURL('http://192.168.1.1/admin')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-orange-500/60 text-orange-400 hover:bg-orange-500/20 hover:border-orange-500 text-left transition-all duration-200 shadow-lg shadow-orange-500/10">
-    <span class="font-mono text-sm">192.168.1.1/admin</span>
-    <span class="text-xs text-gray-500 block mt-1">Private IP + admin path</span>
-  </button>
+  <!-- HIGH RISK -->
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <span class="w-2 h-2 rounded-full bg-orange-400"></span>
+      <h4 class="text-orange-400 text-sm font-semibold uppercase tracking-wider">High Risk</h4>
+      <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">Suspicious</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <button onclick="runDemoURL('http://192.168.1.1/admin')" class="group p-4 bg-gray-900/80 rounded-xl border border-orange-500/40 text-left transition-all duration-300 hover:bg-orange-500/10 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/20 hover:-translate-y-0.5">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-mono text-sm text-orange-400 group-hover:text-orange-300">192.168.1.1/admin</span>
+          <span class="text-orange-400 text-xs">⚠️</span>
+        </div>
+        <span class="text-xs text-gray-500 group-hover:text-gray-400">Private IP • Admin path • Internal network</span>
+      </button>
 
-  <button onclick="runDemoURL('https://bit.ly/3abc123')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-orange-500/60 text-orange-400 hover:bg-orange-500/20 hover:border-orange-500 text-left transition-all duration-200 shadow-lg shadow-orange-500/10">
-    <span class="font-mono text-sm">bit.ly/3abc123</span>
-    <span class="text-xs text-gray-500 block mt-1">URL shortener - hidden destination</span>
-  </button>
+      <button onclick="runDemoURL('https://bit.ly/3abc123')" class="group p-4 bg-gray-900/80 rounded-xl border border-orange-500/40 text-left transition-all duration-300 hover:bg-orange-500/10 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/20 hover:-translate-y-0.5">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-mono text-sm text-orange-400 group-hover:text-orange-300">bit.ly/3abc123</span>
+          <span class="text-orange-400 text-xs">⚠️</span>
+        </div>
+        <span class="text-xs text-gray-500 group-hover:text-gray-400">URL shortener • Hidden destination</span>
+      </button>
+    </div>
+  </div>
 
   <!-- CRITICAL -->
-  <button onclick="runDemoURL('http://login-paypal-secure.tk/verify')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-red-500/60 text-red-400 hover:bg-red-500/20 hover:border-red-500 text-left transition-all duration-200 shadow-lg shadow-red-500/10">
-    <span class="font-mono text-sm">login-paypal-secure.tk</span>
-    <span class="text-xs text-gray-500 block mt-1">Free TLD + phishing keywords</span>
-  </button>
+  <div>
+    <div class="flex items-center gap-2 mb-3">
+      <span class="w-2 h-2 rounded-full bg-red-400"></span>
+      <h4 class="text-red-400 text-sm font-semibold uppercase tracking-wider">Critical</h4>
+      <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">Dangerous</span>
+    </div>
+    <div class="grid grid-cols-1 gap-3">
+      <button onclick="runDemoURL('http://login-paypal-secure.tk/verify')" class="group p-4 bg-gray-900/80 rounded-xl border border-red-500/40 text-left transition-all duration-300 hover:bg-red-500/10 hover:border-red-500 hover:shadow-lg hover:shadow-red-500/20 hover:-translate-y-0.5">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-mono text-sm text-red-400 group-hover:text-red-300">login-paypal-secure.tk</span>
+          <span class="text-red-400 text-xs">🚨</span>
+        </div>
+        <span class="text-xs text-gray-500 group-hover:text-gray-400">Free TLD (.tk) • Phishing keywords • Brand impersonation</span>
+      </button>
 
-  <button onclick="runDemoURL('http://192.168.0.1/login.php?session=evil')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-red-500/60 text-red-400 hover:bg-red-500/20 hover:border-red-500 text-left transition-all duration-200 shadow-lg shadow-red-500/10">
-    <span class="font-mono text-sm">192.168.0.1/login.php</span>
-    <span class="text-xs text-gray-500 block mt-1">Raw IP + phishing params + PHP</span>
-  </button>
+      <button onclick="runDemoURL('http://192.168.0.1/login.php?session=evil')" class="group p-4 bg-gray-900/80 rounded-xl border border-red-500/40 text-left transition-all duration-300 hover:bg-red-500/10 hover:border-red-500 hover:shadow-lg hover:shadow-red-500/20 hover:-translate-y-0.5">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-mono text-sm text-red-400 group-hover:text-red-300">192.168.0.1/login.php</span>
+          <span class="text-red-400 text-xs">🚨</span>
+        </div>
+        <span class="text-xs text-gray-500 group-hover:text-gray-400">Raw IP • PHP endpoint • Suspicious params</span>
+      </button>
 
-  <button onclick="runDemoURL('https://secure-banking-login.xyz/verify/account/update')" class="w-full p-4 bg-gray-900/80 rounded-lg border border-red-500/60 text-red-400 hover:bg-red-500/20 hover:border-red-500 text-left transition-all duration-200 shadow-lg shadow-red-500/10">
-    <span class="font-mono text-sm">secure-banking-login.xyz</span>
-    <span class="text-xs text-gray-500 block mt-1">Risky TLD + deep path + bank keywords</span>
-  </button>
+      <button onclick="runDemoURL('https://secure-banking-login.xyz/verify/account/update')" class="group p-4 bg-gray-900/80 rounded-xl border border-red-500/40 text-left transition-all duration-300 hover:bg-red-500/10 hover:border-red-500 hover:shadow-lg hover:shadow-red-500/20 hover:-translate-y-0.5">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-mono text-sm text-red-400 group-hover:text-red-300">secure-banking-login.xyz</span>
+          <span class="text-red-400 text-xs">🚨</span>
+        </div>
+        <span class="text-xs text-gray-500 group-hover:text-gray-400">Risky TLD (.xyz) • Deep path • Bank keywords</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="pt-4 border-t border-gray-800">
+    <div class="flex flex-wrap gap-4 text-xs text-gray-500">
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-400"></span> Safe</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-400"></span> Medium</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-400"></span> High</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-400"></span> Critical</span>
+    </div>
+  </div>
+
 </div>
               </div>
             </section>
@@ -722,103 +810,6 @@
       const resultsSection = document.getElementById("resultsSection");
       const terminalOutput = document.getElementById("terminalOutput");
 
-      btn.addEventListener("click", async () => {
-        const val = input.value.trim().toLowerCase();
-        if (!val) return;
-
-        // Show progress
-        document.getElementById("scanningProgress").classList.remove("hidden");
-        const progressFill = document.getElementById("progressFill");
-        const progressText = document.getElementById("progressText");
-        const currentFile = document.getElementById("currentFile");
-
-        const steps = [
-          "Parsing URL structure",
-          "Checking protocol security",
-          "Analyzing domain patterns",
-          "Evaluating phishing indicators",
-          "Finalizing risk score",
-        ];
-
-        for (let i = 0; i <= 100; i += 10) {
-          progressFill.style.width = i + "%";
-          progressText.textContent = i + "%";
-
-          const stepIndex = Math.min(Math.floor(i / 20), steps.length - 1);
-
-          currentFile.textContent = `${steps[stepIndex]}... ${i}%`;
-
-          await new Promise((r) => setTimeout(r, 800));
-        }
-
-        document.getElementById("scanningProgress").classList.add("hidden");
-        analyzeURL();
-      });
-
-      /* function renderResults({ threatLevel, threatScore, findings }) {
-        resultsSection.classList.remove("hidden");
-        // UPDATE QUICK STATS COUNTERS
-        const safeEl = document.getElementById("safeCount");
-        const warnEl = document.getElementById("warningCount");
-        const threatEl = document.getElementById("threatCount");
-
-        if (threatLevel === "safe") {
-          safeEl.textContent = parseInt(safeEl.textContent) + 1;
-        } else if (threatLevel === "low" || threatLevel === "medium") {
-          warnEl.textContent = parseInt(warnEl.textContent) + 1;
-        } else if (threatLevel === "high") {
-          threatEl.textContent = parseInt(threatEl.textContent) + 1;
-        }
-
-        const colorMap = {
-          safe: "#22c55e",
-          low: "#eab308",
-          medium: "#f97316",
-          high: "#ef4444",
-        };
-
-        document.getElementById("threatPercentage").textContent =
-          threatLevel === "safe" ? "SAFE" : threatScore + "%";
-        document.getElementById("threatPercentage").style.color =
-          colorMap[threatLevel];
-
-        const list = document.getElementById("findingsList");
-        list.innerHTML = "";
-        findings.forEach((f) => {
-          const div = document.createElement("div");
-          div.className = "flex items-center justify-between";
-          div.innerHTML = `<span class="text-gray-300">${f}</span><span class="text-xs text-gray-500">Heuristic</span>`;
-          list.appendChild(div);
-        });
-
-        // Terminal
-        const log = (msg, cls = "text-green-400") => {
-          const line = document.createElement("div");
-          line.className = cls;
-          line.textContent = msg;
-          terminalOutput.appendChild(line);
-          terminalOutput.scrollTop = terminalOutput.scrollHeight;
-        };
-        log("[SCAN] " + input.value, "text-blue-400");
-        log(
-          `[RESULT] Threat Level: ${threatLevel.toUpperCase()} (${threatScore}/100)`,
-          threatScore > 60
-            ? "text-red-400"
-            : threatScore > 35
-            ? "text-yellow-400"
-            : "text-green-400"
-        );
-        findings.forEach((f) => log(`[FINDING] ${f}`, "text-yellow-400"));
-
-        // Animate
-        anime({
-          targets: ".analysis-card",
-          opacity: [0, 1],
-          translateY: [20, 0],
-          delay: anime.stagger(100),
-          easing: "easeOutExpo",
-        });
-      } */
     </script>
 
     <script src="url-analyzer.js"></script>

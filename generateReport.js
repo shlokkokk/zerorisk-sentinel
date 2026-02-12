@@ -1,4 +1,4 @@
-const REPORT_VERSION = "2.1.0";
+const REPORT_VERSION = "2.1.1"; // added urlscan data and deep scan stats
 let selectedFormat = null;
 
 // CHART DATA CALCULATION
@@ -29,15 +29,19 @@ function calculateURLStats() {
   const urlData = JSON.parse(sessionStorage.getItem("urlResults") || "[]");
   
   let safe = 0, warning = 0, critical = 0;
-  let backendBased = 0, localBased = 0;
+  let backendBased = 0, localBased = 0, deepScan = 0;
 
   urlData.forEach((url) => {
-    if (url.threatLevel === "safe") safe++;
-    else if (url.threatLevel === "low" || url.threatLevel === "medium") warning++;
-    else if (url.threatLevel === "high" || url.threatLevel === "critical") critical++;
+    if (url.threatLevel === "safe" || url.threat_level === "safe") safe++;
+    else if (url.threatLevel === "low" || url.threatLevel === "medium" || 
+             url.threat_level === "low" || url.threat_level === "medium") warning++;
+    else if (url.threatLevel === "high" || url.threatLevel === "critical" ||
+             url.threat_level === "high" || url.threat_level === "critical") critical++;
     
     if (url.backend_based) backendBased++;
     else localBased++;
+    
+    if (url.deep_scan) deepScan++;
   });
 
   return {
@@ -46,7 +50,8 @@ function calculateURLStats() {
     warning,
     critical,
     backendBased,
-    localBased
+    localBased,
+    deepScan
   };
 }
 
@@ -196,6 +201,7 @@ async function generateJSONReport(fileData, urlData) {
       totalScans: fileData.length + urlData.length,
       filesScanned: fileData.length,
       urlsScanned: urlData.length,
+      urlsWithDeepScan: urlStats.deepScan,
       overallSecurityScore: chartData.avgScore,
       threatBreakdown: {
         safe: chartData.safe + urlStats.safe,
@@ -237,14 +243,17 @@ async function generateJSONReport(fileData, urlData) {
     urlAnalysis: {
       scanned: urlData.length > 0,
       totalURLs: urlData.length,
+      deepScans: urlStats.deepScan,
       statistics: urlStats,
       urls: urlData.length > 0 ? urlData.map((url) => ({
         url: url.url,
         domain: url.domain,
-        threatLevel: url.threat_level,
-        threatScore: url.threat_score,
+        threatLevel: url.threat_level || url.threatLevel,
+        threatScore: url.threat_score || url.threatScore,
         backendBased: url.backend_based || false,
+        deepScan: url.deep_scan || false,
         services: url.services || {},
+        urlscanData: url.urlscan_data || null,
         findings: url.findings || [],
         explanation: url.explanation || "",
         scanTimestamp: url.scan_time
@@ -292,7 +301,8 @@ async function generatePDFReport(fileData, urlData) {
     dark: [10, 10, 10],          // Black #0a0a0a
     panel: [26, 26, 26],         // Panel bg #1a1a1a
     gray: [128, 128, 128],       // Gray
-    white: [255, 255, 255]       // White
+    white: [255, 255, 255],      // White
+    purple: [168, 85, 247]       // Purple for Deep Scan
   };
 
   // Helper functions
@@ -375,7 +385,7 @@ async function generatePDFReport(fileData, urlData) {
   doc.setFillColor(...colors.panel);
   doc.setDrawColor(...colors.primary);
   doc.setLineWidth(0.3);
-  doc.roundedRect(margin + 20, metaBoxY, pageWidth - (margin * 2) - 40, 40, 3, 3, "FD");
+  doc.roundedRect(margin + 20, metaBoxY, pageWidth - (margin * 2) - 40, 45, 3, 3, "FD");
 
   y += 10;
   addText(`Report Generated: ${new Date().toLocaleString()}`, pageWidth / 2, y, 10, colors.gray, "normal", "center");
@@ -387,8 +397,13 @@ async function generatePDFReport(fileData, urlData) {
   
   const totalItems = fileData.length + urlData.length;
   addText(`Items Scanned: ${totalItems} (Files: ${fileData.length}, URLs: ${urlData.length})`, pageWidth / 2, y, 10, colors.white, "bold", "center");
+  
+  if (urlStats.deepScan > 0) {
+    y += 7;
+    addText(`Deep Scans: ${urlStats.deepScan}`, pageWidth / 2, y, 9, colors.purple, "normal", "center");
+  }
 
-  y = metaBoxY + 50;
+  y = metaBoxY + 55;
 
   // Security Score (if files scanned)
   if (fileData.length > 0) {
@@ -437,7 +452,7 @@ async function generatePDFReport(fileData, urlData) {
 
   // Summary box
   doc.setFillColor(...colors.panel);
-  doc.roundedRect(margin, y, pageWidth - (margin * 2), 50, 2, 2, "F");
+  doc.roundedRect(margin, y, pageWidth - (margin * 2), 55, 2, 2, "F");
 
   let boxY = y + 8;
   addText(`Total Items Analyzed: ${fileData.length + urlData.length}`, margin + 5, boxY, 11, colors.white);
@@ -445,6 +460,12 @@ async function generatePDFReport(fileData, urlData) {
   addText(`Files Scanned: ${fileData.length}`, margin + 5, boxY, 11, colors.white);
   boxY += 8;
   addText(`URLs Scanned: ${urlData.length}`, margin + 5, boxY, 11, colors.white);
+  
+  if (urlStats.deepScan > 0) {
+    boxY += 8;
+    addText(`URLs with Deep Scan: ${urlStats.deepScan}`, margin + 5, boxY, 11, colors.purple, "bold");
+  }
+  
   boxY += 8;
 
   if (fileData.length > 0) {
@@ -456,7 +477,7 @@ async function generatePDFReport(fileData, urlData) {
     addText(`Risk Assessment: ${riskText}`, margin + 5, boxY, 11, riskColor, "bold");
   }
 
-  y += 60;
+  y += 65;
 
   // Threat Distribution
   if (fileData.length > 0 || urlData.length > 0) {
@@ -464,7 +485,7 @@ async function generatePDFReport(fileData, urlData) {
     y = addSectionHeader("Threat Distribution", y);
 
     doc.setFillColor(...colors.panel);
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 25, 2, 2, "F");
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), 30, 2, 2, "F");
 
     const totalSafe = chartData.safe + urlStats.safe;
     const totalWarning = chartData.warning + urlStats.warning;
@@ -473,8 +494,12 @@ async function generatePDFReport(fileData, urlData) {
     addText(`● Safe: ${totalSafe}`, margin + 10, y + 10, 11, colors.secondary);
     addText(`● Warnings: ${totalWarning}`, margin + 70, y + 10, 11, colors.warning);
     addText(`● Critical: ${totalCritical}`, margin + 130, y + 10, 11, colors.danger);
+    
+    if (urlStats.deepScan > 0) {
+      addText(`● Deep Scans: ${urlStats.deepScan}`, margin + 10, y + 20, 10, colors.purple);
+    }
 
-    y += 35;
+    y += 40;
   }
 
   // Risk Assessment Text
@@ -618,34 +643,59 @@ async function generatePDFReport(fileData, urlData) {
     y = addSectionHeader("URL Security Analysis", y);
 
     urlData.forEach((url, index) => {
-      checkPageBreak(35);
+      checkPageBreak(45);
 
-      const threatColor = getThreatColor(url.threat_level);
+      const threatLevel = url.threat_level || url.threatLevel || "unknown";
+      const threatColor = getThreatColor(threatLevel);
+      const isDeepScan = url.deep_scan || url.deepScan;
 
       // URL header box
       doc.setFillColor(...colors.panel);
       doc.setDrawColor(...threatColor);
-      doc.roundedRect(margin, y, pageWidth - (margin * 2), 12, 2, 2, "FD");
+      doc.roundedRect(margin, y, pageWidth - (margin * 2), isDeepScan ? 16 : 12, 2, 2, "FD");
 
       const displayUrl = (url.url || "").length > 50 
         ? (url.url || "").substring(0, 47) + "..." 
         : (url.url || "");
       
       addText(`${index + 1}. ${displayUrl}`, margin + 3, y + 4, 9, colors.white, "bold");
-      addText((url.threat_level || "unknown").toUpperCase(), pageWidth - margin - 3, y + 4, 9, threatColor, "bold", "right");
+      addText(threatLevel.toUpperCase(), pageWidth - margin - 3, y + 4, 9, threatColor, "bold", "right");
+      
+      if (isDeepScan) {
+        addText("[DEEP SCAN]", pageWidth - margin - 40, y + 4, 8, colors.purple, "bold", "right");
+      }
 
-      y += 15;
+      y += isDeepScan ? 19 : 15;
 
       // URL details
+      const detailsHeight = isDeepScan ? 35 : 22;
       doc.setFillColor(...colors.panel);
-      doc.roundedRect(margin, y - 3, pageWidth - (margin * 2), 22, 2, 2, "F");
+      doc.roundedRect(margin, y - 3, pageWidth - (margin * 2), detailsHeight, 2, 2, "F");
 
       addText(`Domain: ${url.domain || "N/A"}`, margin + 5, y + 5, 9, colors.gray);
-      addText(`Score: ${url.threat_score || 0}/100`, margin + 80, y + 5, 9, colors.white);
-      addText(`Type: ${url.backend_based ? "Backend Intelligence" : "Local Heuristic"}`, margin + 130, y + 5, 8, colors.gray);
+      addText(`Score: ${url.threat_score || url.threatScore || 0}/100`, margin + 80, y + 5, 9, colors.white);
+      
+      const scanType = url.backend_based ? "Backend Intelligence" : "Local Heuristic";
+      addText(`Type: ${scanType}`, margin + 130, y + 5, 8, colors.gray);
+
+      // Deep Scan info
+      if (isDeepScan && url.urlscan_data) {
+        const us = url.urlscan_data;
+        const ns = us.network_stats || {};
+        addText(`Network Requests: ${ns.total_requests || 0}`, margin + 5, y + 14, 8, colors.gray);
+        addText(`Suspicious Domains: ${ns.suspicious_domains || 0}`, margin + 80, y + 14, 8, ns.suspicious_domains > 0 ? colors.danger : colors.gray);
+        addText(`Server: ${us.server || "N/A"}`, margin + 130, y + 14, 8, colors.gray);
+        
+        if (us.ip) {
+          addText(`IP: ${us.ip}`, margin + 5, y + 23, 8, colors.gray);
+        }
+        if (us.country) {
+          addText(`Country: ${us.country}`, margin + 80, y + 23, 8, colors.gray);
+        }
+      }
 
       // External services
-      let serviceY = y + 12;
+      let serviceY = y + (isDeepScan ? 30 : 12);
       if (url.services) {
         const gsb = url.services.google_safe_browsing;
         if (gsb && gsb.available) {
@@ -663,9 +713,18 @@ async function generatePDFReport(fileData, urlData) {
           addText(`URLHaus:`, margin + 5, serviceY, 8, colors.gray);
           addText(status, margin + 55, serviceY, 8, statusColor, "bold");
         }
+        
+        const vt = url.services.virustotal_url;
+        if (vt && vt.available) {
+          serviceY += 5;
+          const status = `${vt.malicious || 0}/${vt.total || 70} flagged`;
+          const statusColor = (vt.malicious || 0) > 0 ? colors.danger : colors.secondary;
+          addText(`VirusTotal:`, margin + 5, serviceY, 8, colors.gray);
+          addText(status, margin + 55, serviceY, 8, statusColor, "bold");
+        }
       }
 
-      y += 28;
+      y += detailsHeight + 10;
 
       // Findings
       if (url.findings && url.findings.length > 0) {
@@ -788,6 +847,10 @@ function generateRiskAssessmentText(fileData, urlData) {
     if (text) text += "\n\n";
     text += `URL Analysis: ${urlData.length} URL(s) scanned. `;
     
+    if (urlStats.deepScan > 0) {
+      text += `${urlStats.deepScan} URL(s) analyzed with Deep Scan sandboxing. `;
+    }
+    
     if (urlStats.critical > 0) {
       text += `WARNING: ${urlStats.critical} malicious URL(s) detected. Avoid these sites. `;
     } else if (urlStats.warning > 0) {
@@ -854,6 +917,13 @@ function generateRecommendations(fileData, urlData) {
       recs.push({
         title: "Avoid Malicious Websites",
         description: "Multiple dangerous URLs detected. Do not visit these sites. Clear browser cache and check for unauthorized redirects."
+      });
+    }
+    
+    if (urlStats.deepScan > 0) {
+      recs.push({
+        title: "Deep Scan Analysis Complete",
+        description: `${urlStats.deepScan} URL(s) were analyzed using live browser sandboxing. Review screenshots and network activity for additional context.`
       });
     }
     

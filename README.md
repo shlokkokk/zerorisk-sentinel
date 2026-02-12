@@ -1,6 +1,6 @@
 # ZeroRisk Sentinel - Frontend
 
-The web interface for ZeroRisk Sentinel, a hybrid cybersecurity analysis platform. Built with vanilla JavaScript and a cyberpunk aesthetic, this frontend provides file scanning, URL analysis, and comprehensive security reporting.
+The web interface for ZeroRisk Sentinel, a hybrid cybersecurity analysis platform. Built with vanilla JavaScript and a cyberpunk aesthetic, this frontend provides file scanning, URL analysis with optional Deep Scan sandboxing, and comprehensive security reporting.
 
 **Created by Shlok Shah**
 
@@ -16,11 +16,11 @@ This is the client-side application for ZeroRisk Sentinel. It performs initial s
 
 ```
 ├── index.html          # Main file scanner interface
-├── url.html            # URL security analysis page
+├── url.html            # URL security analysis page with Deep Scan toggle
 ├── results.html        # Detailed analysis results & reporting
 ├── about.html          # Documentation & methodology
 ├── main.js             # Core file analysis engine
-├── url-analyzer.js     # URL scanning logic
+├── url-analyzer.js     # URL scanning logic with urlscan.io integration
 └── generateReport.js   # PDF/JSON report generation
 ```
 | 🔗 Backend Service | |
@@ -34,9 +34,9 @@ This is the client-side application for ZeroRisk Sentinel. It performs initial s
 
 | Page | Purpose |
 |------|---------|
-| **index.html** | File drop zone with drag-and-drop support, scan mode toggle (Live/Demo), deep scan option |
-| **url.html** | URL input with demo samples, backend connectivity check, heuristic fallback |
-| **results.html** | ECharts visualizations, dynamic result rendering, report export modal |
+| **index.html** | File drop zone with drag-and-drop support, scan mode toggle (Live/Demo), Quick/Deep scan option |
+| **url.html** | URL input with demo samples (Safe/Medium/High/Critical categories), Deep Scan toggle for urlscan.io sandbox, backend connectivity check |
+| **results.html** | ECharts visualizations, dynamic result rendering, report export modal, URL Deep Scan results with screenshots |
 | **about.html** | Full methodology documentation, tech stack info, architecture explanation |
 
 ---
@@ -45,7 +45,7 @@ This is the client-side application for ZeroRisk Sentinel. It performs initial s
 
 ### Backend Integration
 
-The frontend communicates with a Flask backend (configured via environment variable or constant).:
+The frontend communicates with a Flask backend (configured via environment variable or constant):
 
 ```javascript
 // Backend status check on load
@@ -63,6 +63,14 @@ Content-Type: multipart/form-data
 POST /api/analyze-url
 Content-Type: application/json
 { "url": "https://example.com" }
+
+// URL Deep Scan (urlscan.io) - Submit
+POST /api/urlscan/submit
+Content-Type: application/json
+{ "url": "https://example.com" }
+
+// URL Deep Scan - Poll Result
+GET /api/urlscan/result/<scan_id>
 
 // Hash lookup (no upload)
 GET /api/scan-hash/<sha256>
@@ -122,7 +130,7 @@ const fileData = JSON.parse(sessionStorage.getItem("analysisResults") || "[]");
 - **Live Mode**: Real file/URL analysis with backend integration
 - **Demo Mode**: Pre-configured samples for testing without uploading actual files
 
-### Deep Scan Toggle
+### Quick Scan vs Deep Scan (Files)
 
 ```javascript
 // Quick Scan: Samples strategic positions (start, middle, end)
@@ -133,6 +141,14 @@ while (offset < file.size) {
   // Process chunk...
 }
 ```
+
+### URL Deep Scan (urlscan.io)
+
+When the Deep Scan toggle is enabled for URLs:
+1. URL is submitted to backend's `/api/urlscan/submit`
+2. Backend forwards to urlscan.io API
+3. Frontend polls `/api/urlscan/result/<scan_id>` every 2 seconds
+4. Results include: screenshot, network stats, brand detection, malicious verdicts
 
 ---
 
@@ -158,23 +174,26 @@ while (offset < file.size) {
 - **RTL override detection**: Unicode right-to-left character detection
 - **Keylogger detection**: Pattern matching for surveillance APIs
 - **Spyware profile**: Surveillance, exfiltration, persistence, stealth scoring
+- **Backend-enhanced scanning**: YARA rules, VirusTotal, entropy analysis when backend available
 
 ### URL Analysis (`url-analyzer.js`)
 
-- Backend-first with 25-second timeout
-- Local fallback heuristics:
+- **Backend-first** with 25-second timeout
+- **Deep Scan option**: Live browser sandbox via urlscan.io (20-40s analysis)
+- **Local fallback heuristics**:
   - IP-based URL detection
   - URL shortener detection (bit.ly, tinyurl, etc.)
   - Phishing keyword matching
   - Risky TLD detection (.xyz, .tk, .ml)
   - HTTPS verification
+- **Demo URL categories**: Safe, Medium Risk, High Risk, Critical
 
 ### Report Generation (`generateReport.js`)
 
 | Format | Features |
 |--------|----------|
-| **JSON** | Complete scan metadata, hashes, findings, recommendations |
-| **PDF** | Professional formatted report with cover page, executive summary, threat distribution, per-file breakdown, security recommendations |
+| **JSON** | Complete scan metadata, hashes, findings, recommendations, URL Deep Scan data |
+| **PDF** | Professional formatted report with cover page, executive summary, threat distribution, per-file breakdown, URL analysis section, security recommendations |
 
 Keyboard shortcut: `Ctrl+Shift+R` opens report modal
 
@@ -212,6 +231,34 @@ User uploads file
 └─────────────────┘
 ```
 
+### URL Deep Scan Flow
+
+```
+User enters URL + enables Deep Scan
+        │
+        ▼
+┌─────────────────┐
+│ Submit to       │
+│ /api/urlscan/   │
+│ submit          │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Poll every 2s   │
+│ for results     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Display:        │
+│ • Screenshot    │
+│ • Network stats │
+│ • Verdicts      │
+│ • Findings      │
+└─────────────────┘
+```
+
 ### Security Considerations
 
 - Files are analyzed locally first before any backend upload
@@ -223,10 +270,11 @@ User uploads file
 
 ## Limitations
 
-- **Static analysis only**: No runtime execution or sandboxing
+- **Static analysis only**: No runtime execution or sandboxing (except urlscan.io for URLs)
 - **Browser constraints**: Cannot access system APIs or perform deep OS integration
 - **File size limits**: Large files may cause performance issues in browser
 - **Heuristic-based**: Results indicate risk, not definitive proof of maliciousness
+- **URLScan rate limits**: Free tier limited to few scans/day
 
 ---
 
