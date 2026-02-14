@@ -17,9 +17,17 @@ function generateRiskExplanation(analysis) {
   const hasYARA = findings.some(f => f.type === 'yara_match' || f.rule);
   const yaraRules = findings.filter(f => f.type === 'yara_match' || f.rule).map(f => f.rule || f.type);
   const hasKeyloggerYARA = yaraRules.some(r => r && r.toLowerCase().includes('keylogger'));
+  
+  // Check for sandbox findings
+  const hasSandboxFindings = analysis.sandbox_data && analysis.sandbox_data.findings && analysis.sandbox_data.findings.length > 0;
+  const sandboxCritical = hasSandboxFindings ? analysis.sandbox_data.findings.filter(f => f.severity === 'critical').length : 0;
+  const sandboxMalicious = analysis.sandbox_data && analysis.sandbox_data.verdict === 'malicious';
 
   // CRITICAL LEVEL
   if (level === 'critical') {
+    if (sandboxMalicious) {
+      return `CRITICAL: Sandbox analysis confirmed MALICIOUS behavior during execution. Immediate quarantine recommended.`;
+    }
     if (hasVirusTotal && vtCount >= 5) {
       return `CRITICAL: ${vtCount} antivirus engines confirm this is known malware. Immediate quarantine recommended.`;
     }
@@ -40,6 +48,9 @@ function generateRiskExplanation(analysis) {
 
   // HIGH LEVEL
   if (level === 'high') {
+    if (hasSandboxFindings && sandboxCritical > 0) {
+      return `HIGH RISK: Sandbox detected ${sandboxCritical} critical behavior(s) during execution. Suspicious activity confirmed.`;
+    }
     if (hasVirusTotal) {
       return `HIGH RISK: VirusTotal shows ${vtCount} detections. Known suspicious file with confirmed indicators.`;
     }
@@ -96,12 +107,28 @@ function generateRiskExplanation(analysis) {
   return `SAFE: No threats detected. Clean file hash, normal entropy, no suspicious patterns.`;
 }
 const BACKEND_URL = 'https://zerorisk-sentinel-backend.onrender.com';
+
+// Deep scan polling configuration
+const SANDBOX_POLL_CONFIG = {
+  maxAttempts: 30,
+  interval: 2000,
+  timeout: 60000
+};
+
 class RealFileScanner {
   constructor() {
     this.backendUrl = BACKEND_URL;
   }
 
-  async scanFile(file) {
+  async scanFile(file, deepScan = false) {
+    // If deep scan enabled, use deep scan endpoint
+    if (deepScan) {
+      return this.scanFileDeep(file);
+    }
+    return this.scanFileNormal(file);
+  }
+
+  async scanFileNormal(file) {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -125,9 +152,126 @@ class RealFileScanner {
 
     } catch (error) {
       console.error('[SCAN ERROR]', error);
-      // Fallback to your existing local analysis
-      return null; // Return null so your existing code handles it
+      return null;
     }
+  }
+
+  async scanFileDeep(file, onProgress = null) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      // Step 1: Submit for deep scan (regular + sandbox)
+      if (onProgress) onProgress(10, 'Submitting to sandbox...');
+      
+      const response = await fetch(`${this.backendUrl}/api/scan-file-deep`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Deep scan failed');
+      }
+
+      // Get regular scan results immediately
+      const regularResult = result.regular_scan;
+      const sandboxSubmit = result.sandbox;
+
+      // If sandbox submission failed, return regular results only
+      if (!sandboxSubmit || !sandboxSubmit.success) {
+        console.warn('[DEEP SCAN] Sandbox submission failed, using regular scan only');
+        const analysis = this.transformBackendResult(regularResult, file);
+        analysis.deep_scan = false;  // FIX: Don't show deep scan badge if sandbox failed
+        analysis.deep_scan_attempted = true;  // But track that we tried
+        analysis.sandbox_error = sandboxSubmit?.error || 'Sandbox submission failed - API key not configured';
+        return analysis;
+      }
+
+      // Step 2: Poll for sandbox results
+      const jobId = sandboxSubmit.job_id;
+      if (onProgress) onProgress(20, 'Sandbox analyzing... (wait 30-60s)');
+
+      const sandboxResult = await this.pollSandboxResult(jobId, onProgress);
+
+      // Merge regular and sandbox results
+      const mergedResult = this.mergeSandboxResults(regularResult, sandboxResult, file);
+      return mergedResult;
+
+    } catch (error) {
+      console.error('[DEEP SCAN ERROR]', error);
+      // Fallback to normal scan
+      return this.scanFileNormal(file);
+    }
+  }
+
+  async pollSandboxResult(jobId, onProgress = null) {
+    for (let attempt = 0; attempt < SANDBOX_POLL_CONFIG.maxAttempts; attempt++) {
+      const progress = 20 + Math.round((attempt / SANDBOX_POLL_CONFIG.maxAttempts) * 75);
+      if (onProgress) onProgress(progress, `Analyzing... (${attempt + 1}/${SANDBOX_POLL_CONFIG.maxAttempts})`);
+
+      await new Promise(r => setTimeout(r, SANDBOX_POLL_CONFIG.interval));
+
+      try {
+        const response = await fetch(`${this.backendUrl}/api/sandbox/result/${jobId}`);
+        const result = await response.json();
+
+        if (result.success && result.status === 'completed') {
+          return result;
+        }
+
+        if (result.status === 'failed') {
+          throw new Error(result.error || 'Sandbox analysis failed');
+        }
+
+      } catch (e) {
+        console.warn(`[SANDBOX POLL] Attempt ${attempt + 1} failed:`, e.message);
+      }
+    }
+
+    throw new Error('Sandbox analysis timeout');
+  }
+
+  mergeSandboxResults(regularResult, sandboxResult, file) {
+    // Start with regular scan result
+    const merged = this.transformBackendResult(regularResult, file);
+    
+    // Add deep scan flag
+    merged.deep_scan = true;
+    
+    // If sandbox result exists, merge its data
+    if (sandboxResult && sandboxResult.success) {
+      merged.sandbox_data = sandboxResult.sandbox_data || {};
+      
+      // Merge findings from sandbox
+      if (sandboxResult.findings && sandboxResult.findings.length > 0) {
+        // Add sandbox findings with prefix
+        const sandboxFindings = sandboxResult.findings.map(f => ({
+          ...f,
+          source: 'sandbox',
+          description: f.description
+        }));
+        merged.findings = [...merged.findings, ...sandboxFindings];
+      }
+      
+      // Take the higher threat score
+      if (sandboxResult.threat_score > merged.threatScore) {
+        merged.threatScore = sandboxResult.threat_score;
+        merged.threatLevel = sandboxResult.threat_level;
+      }
+      
+      // Update explanation with sandbox info
+      if (sandboxResult.explanation) {
+        merged.sandboxExplanation = sandboxResult.explanation;
+      }
+    }
+
+    return merged;
   }
 
   transformBackendResult(backendData, originalFile) {
@@ -138,14 +282,16 @@ class RealFileScanner {
       severity: f.severity,
       description: f.description || `YARA rule: ${f.rule}`,
       rule: f.rule || null,
-      tags: f.tags || []
+      tags: f.tags || [],
+      source: f.source || 'regular'
     }));
 
     if (backendData.entropy > 7.5) {
       formattedFindings.push({
         type: 'high_entropy',
         severity: 'medium',
-        description: `High entropy detected (${backendData.entropy}/8.0) - file may be packed or encrypted`
+        description: `High entropy detected (${backendData.entropy}/8.0) - file may be packed or encrypted`,
+        source: 'regular'
       });
     }
 
@@ -154,7 +300,8 @@ class RealFileScanner {
       formattedFindings.unshift({
         type: 'virustotal',
         severity: vt.malicious >= 5 ? 'critical' : vt.malicious >= 2 ? 'high' : 'medium',
-        description: `VirusTotal: ${vt.malicious}/${vt.total} engines detected this file as malicious`
+        description: `VirusTotal: ${vt.malicious}/${vt.total} engines detected this file as malicious`,
+        source: 'regular'
       });
     }
 
@@ -176,6 +323,9 @@ class RealFileScanner {
       entropy: backendData.entropy,
       fileType: backendData.file_type,
       virustotal: backendData.virustotal,
+      deep_scan: backendData.deep_scan || false,
+      sandbox_data: backendData.sandbox_data || null,
+      sandboxExplanation: backendData.explanation || null,
       spywareProfile: {
         surveillance: findings.some(f => f.rule && f.rule.toLowerCase().includes('keylogger')),
         dataExfiltration: findings.some(f => f.description && f.description.toLowerCase().includes('network')),
@@ -217,6 +367,7 @@ class RealFileScanner {
     return explanations.join('; ');
   }
 }
+
 class CyberGuardSpywareAnalyzer {
   constructor() {
     this.files = [];
@@ -235,6 +386,7 @@ class CyberGuardSpywareAnalyzer {
     this.startMatrixBackground();
     this.updateStats();
   }
+  
   async checkBackendStatus() {
     try {
       const res = await fetch("https://zerorisk-sentinel-backend.onrender.com/api/status");
@@ -521,10 +673,13 @@ class CyberGuardSpywareAnalyzer {
     // Show scanning progress
     document.getElementById("scanningProgress").classList.remove("hidden");
 
+    // Check if deep scan is enabled
+    const deepScanEnabled = sessionStorage.getItem("deepScan") === "on";
+
     // Process files sequentially
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      await this.analyzeFile(file, i, files.length);
+      await this.analyzeFile(file, i, files.length, deepScanEnabled);
     }
 
     // Hide progress after completion
@@ -534,50 +689,69 @@ class CyberGuardSpywareAnalyzer {
 
     this.updateFileQueue();
     this.updateStats();
+    
     // STORE RESULTS FOR RESULTS PAGE
-    sessionStorage.setItem(
-      "analysisResults",
-      JSON.stringify(Array.from(this.analysisResults.values()))
-    );
-
     const resultsArray = Array.from(this.analysisResults.values());
     sessionStorage.setItem("analysisResults", JSON.stringify(resultsArray));
-    initializeCharts();
-    renderDynamicResults(resultsArray);
+    
+    if (typeof initializeCharts === 'function') {
+      initializeCharts();
+    }
+    if (typeof renderDynamicResults === 'function') {
+      renderDynamicResults(resultsArray);
+    }
   }
 
-  async analyzeFile(file, index, total) {
-    const progress = ((index + 1) / total) * 100;
+  async analyzeFile(file, index, total, deepScanEnabled = false) {
+    const progressText = document.getElementById("progressText");
+    const progressFill = document.getElementById("progressFill");
+    const currentFile = document.getElementById("currentFile");
 
-    // Update progress
-    document.getElementById("progressText").textContent = `${Math.round(progress)}%`;
-    document.getElementById("progressFill").style.width = `${progress}%`;
-    document.getElementById("currentFile").textContent = `Analyzing: ${file.name}`;
+    const updateProgress = (percent, message) => {
+      progressText.textContent = `${Math.round(percent)}%`;
+      progressFill.style.width = `${percent}%`;
+      if (message) currentFile.textContent = message;
+    };
+
+    const baseProgress = ((index + 1) / total) * 100;
+    updateProgress(baseProgress * 0.1, `Initializing scan for: ${file.name}`);
 
     // Log analysis start
     this.logToTerminal(`[ANALYZING] ${file.name} (${this.formatBytes(file.size)})`, "blue");
+    
+    if (deepScanEnabled) {
+      this.logToTerminal(`[DEEP SCAN] Sandbox analysis enabled for ${file.name}`, "purple");
+    }
 
-  let analysis;
-
-  // CHECK IF IT'S AN APK use old dedicated endpoint for APKs
-  const isAPK = file.name.toLowerCase().endsWith('.apk');
-  
-  if (isAPK) {
-    // APK Use the old performFileAnalysis which calls /api/analyze-apk
-    this.logToTerminal(`[APK] Using specialized Android analysis for ${file.name}`, "blue");
-    analysis = await this.performFileAnalysis(file);
-  } else {
-    // NON-APK: Try new backend first, fallback to local
-    analysis = await this.realScanner.scanFile(file);
-
-    // If backend failed or returned null, fall back to local analysis
-    if (!analysis) {
-      this.logToTerminal(`[FALLBACK] Using local analysis for ${file.name}`, "yellow");
-      analysis = await this.performFileAnalysis(file);
+    let analysis;
+    const isAPK = file.name.toLowerCase().endsWith('.apk');
+    
+    if (isAPK) {
+      // APK: Use specialized Android analysis + sandbox if deep scan enabled
+      this.logToTerminal(`[APK] Using specialized Android analysis for ${file.name}`, "blue");
+      analysis = await this.performAPKAnalysis(file, deepScanEnabled, updateProgress);
     } else {
-      this.logToTerminal(`[BACKEND] Real scan complete for ${file.name}`, "green");
+      // NON-APK: Try backend first
+      if (deepScanEnabled) {
+        // Deep scan with sandbox
+        analysis = await this.realScanner.scanFile(file, true);
+        if (analysis) {
+          this.logToTerminal(`[BACKEND] Deep scan complete for ${file.name}`, "green");
+        }
+      } else {
+        // Normal scan
+        analysis = await this.realScanner.scanFile(file, false);
+      }
+
+      // If backend failed or returned null, fall back to local analysis
+      if (!analysis) {
+        this.logToTerminal(`[FALLBACK] Using local analysis for ${file.name}`, "yellow");
+        analysis = await this.performFileAnalysis(file);
+      } else {
+        this.logToTerminal(`[BACKEND] Real scan complete for ${file.name}`, "green");
       }
     }
+    
     this.analysisResults.set(file.name, analysis);
 
     // Log results
@@ -587,7 +761,204 @@ class CyberGuardSpywareAnalyzer {
     this.updateThreatLevel();
   }
 
+  async performAPKAnalysis(file, deepScanEnabled, onProgress) {
+    const analysis = {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified,
+      isAPK: true,
+      threatLevel: "safe",
+      threatScore: 0,
+      findings: [],
+      fileHeader: null,
+      extensionMismatch: false,
+      riskExposure: "unknown",
+      malwareDetected: false,
+      keyloggerDetected: false,
+      deep_scan: deepScanEnabled,
+      sandbox_data: null,
+      spywareProfile: {
+        surveillance: false,
+        dataExfiltration: false,
+        persistence: false,
+        stealth: false,
+        credentialHarvesting: false,
+        confidenceScore: 0,
+      },
+    };
+
+    const MAX_APK_SIZE = 8 * 1024 * 1024; // 8 MB
+
+    if (file.size > MAX_APK_SIZE) {
+      analysis.threatLevel = "low";
+      analysis.threatScore = 10;
+      analysis.riskExposure = "APK too large for cloud analysis";
+      analysis.findings.push({
+        type: "apk_size_limit",
+        severity: "low",
+        description: "APK exceeds cloud upload limits. Full analysis requires local backend.",
+      });
+      showNotification("APK too large for online analysis. Use local backend for full scan.", "error");
+      return analysis;
+    }
+
+    try {
+      // Step 1: Regular APK analysis
+      if (onProgress) onProgress(15, 'Analyzing APK permissions...');
+      
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(
+        "https://zerorisk-sentinel-backend.onrender.com/api/analyze-apk",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const backend = await res.json();
+
+      if (backend.success) {
+        const level = backend.data.risk_level || "safe";
+      
+        analysis.apkAnalysis = {
+          backendAvailable: true,
+          riskScore: backend.data.risk_score ?? 0,
+          riskLevel: level,
+          riskyPermissions: backend.data.risky_permissions ?? [],
+          explanation: backend.data.explanation || "No explanation available",
+          apkMetadata: backend.data.apk_metadata || {},
+        };
+      
+        analysis.threatScore = backend.data.risk_score;
+        analysis.threatLevel = backend.data.risk_level;
+      
+        analysis.hashes = backend.data.hashes || {};
+        analysis.entropy = backend.data.entropy || 0;
+        analysis.virustotal = backend.data.virustotal || null;
+        analysis.file_type = backend.data.file_type || {};
+      
+        analysis.spywareProfile = {
+          surveillance: false,
+          dataExfiltration: false,
+          persistence: false,
+          stealth: false,
+          credentialHarvesting: false,
+          confidenceScore: 0,
+          networkContext: "apk",
+        };
+        analysis.keyloggerDetected = false;
+        analysis.riskExposure = backend.data.explanation || "Permission-based Android analysis";
+      
+        analysis.findings = [
+          {
+            type: "apk_backend",
+            severity: backend.data.risk_level,
+            description: "Deep APK permission analysis completed by Python backend",
+          },
+          ...(backend.data.findings || [])
+        ];
+      }
+
+      // Step 2: If deep scan enabled, also run sandbox analysis
+      if (deepScanEnabled && this.backendAvailable) {
+        if (onProgress) onProgress(40, 'Submitting APK to sandbox...');
+        
+        try {
+          const sandboxFormData = new FormData();
+          sandboxFormData.append('file', file);
+          
+          const sandboxRes = await fetch(`${BACKEND_URL}/api/sandbox/submit`, {
+            method: 'POST',
+            body: sandboxFormData
+          });
+          
+          const sandboxSubmit = await sandboxRes.json();
+          
+          if (sandboxSubmit.success) {
+            if (onProgress) onProgress(50, 'Sandbox analyzing APK... (wait 30-60s)');
+            
+            const jobId = sandboxSubmit.job_id;
+            const sandboxResult = await this.pollSandboxForAPK(jobId, onProgress);
+            
+            if (sandboxResult && sandboxResult.success) {
+              analysis.sandbox_data = sandboxResult.sandbox_data || {};
+              
+              // Merge sandbox findings
+              if (sandboxResult.findings && sandboxResult.findings.length > 0) {
+                analysis.findings.push(...sandboxResult.findings.map(f => ({
+                  ...f,
+                  source: 'sandbox'
+                })));
+              }
+              
+              // Update threat level if sandbox found something worse
+              if (sandboxResult.threat_score > analysis.threatScore) {
+                analysis.threatScore = sandboxResult.threat_score;
+                analysis.threatLevel = sandboxResult.threat_level;
+              }
+              
+              analysis.sandboxExplanation = sandboxResult.explanation;
+            }
+          }
+        } catch (e) {
+          console.warn('[APK SANDBOX] Failed:', e);
+          analysis.sandbox_error = 'Sandbox analysis failed';
+        }
+      }
+
+      // Final threat level determination
+      const confidenceScore = analysis.spywareProfile?.confidenceScore || 0;
+      const finalScore = Math.min(100, Math.max(analysis.threatScore, confidenceScore));
+
+      if (finalScore >= 80) analysis.threatLevel = "critical";
+      else if (finalScore >= 60) analysis.threatLevel = "high";
+      else if (finalScore >= 30) analysis.threatLevel = "medium";
+      else if (finalScore >= 15) analysis.threatLevel = "low";
+      else analysis.threatLevel = "safe";
+
+    } catch (error) {
+      analysis.findings.push({
+        type: "error",
+        severity: "low",
+        description: `APK analysis error: ${error.message}`,
+      });
+    }
+
+    analysis.riskExposure = generateRiskExplanation(analysis);
+    return analysis;
+  }
+
+  async pollSandboxForAPK(jobId, onProgress) {
+    for (let attempt = 0; attempt < SANDBOX_POLL_CONFIG.maxAttempts; attempt++) {
+      const progress = 50 + Math.round((attempt / SANDBOX_POLL_CONFIG.maxAttempts) * 45);
+      if (onProgress) onProgress(progress, `Sandbox analyzing APK... (${attempt + 1}/${SANDBOX_POLL_CONFIG.maxAttempts})`);
+
+      await new Promise(r => setTimeout(r, SANDBOX_POLL_CONFIG.interval));
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/sandbox/result/${jobId}`);
+        const result = await response.json();
+
+        if (result.success && result.status === 'completed') {
+          return result;
+        }
+
+        if (result.status === 'failed') {
+          throw new Error(result.error || 'Sandbox analysis failed');
+        }
+      } catch (e) {
+        console.warn(`[APK SANDBOX POLL] Attempt ${attempt + 1} failed:`, e.message);
+      }
+    }
+    
+    throw new Error('Sandbox analysis timeout');
+  }
+
   async performFileAnalysis(file) {
+    // ... existing performFileAnalysis code remains exactly the same ...
     const analysis = {
       name: file.name,
       size: file.size,
@@ -601,6 +972,8 @@ class CyberGuardSpywareAnalyzer {
       riskExposure: "unknown",
       malwareDetected: false,
       keyloggerDetected: false,
+      deep_scan: false,
+      sandbox_data: null,
       spywareProfile: {
         surveillance: false,
         dataExfiltration: false,
@@ -610,27 +983,6 @@ class CyberGuardSpywareAnalyzer {
         confidenceScore: 0,
       },
     };
-    const MAX_APK_SIZE = 8 * 1024 * 1024; // 8 MB
-
-    if (file.name.toLowerCase().endsWith(".apk") && file.size > MAX_APK_SIZE) {
-      analysis.threatLevel = "low";
-      analysis.threatScore = 10;
-      analysis.riskExposure = "APK too large for cloud analysis";
-
-      analysis.findings.push({
-        type: "apk_size_limit",
-        severity: "low",
-        description:
-          "APK exceeds cloud upload limits. Full analysis requires local backend.",
-      });
-
-      showNotification(
-        "APK too large for online analysis. Use local backend for full scan.",
-        "error"
-      );
-
-      return analysis; // ⛔ DO NOT upload to backend
-    }
 
     try {
       // Read file header (first 32 bytes)
@@ -687,147 +1039,21 @@ class CyberGuardSpywareAnalyzer {
         });
         analysis.threatScore += 50;
       }
+      
       // JS-specific heuristic checks (static analysis)
       const extensionLower = file.name.split(".").pop().toLowerCase();
       const isJavaScript = extensionLower === "js";
       const isHtmlOrCss = ["html", "htm", "css"].includes(extensionLower);
+      
       // Scan for malware signatures
-      const deepScanEnabled = sessionStorage.getItem("deepScan") === "on";
-
-      const MAX_DEEP_SCAN_SIZE = 150 * 1024 * 1024; // 150 MB
-      if (deepScanEnabled && file.size > MAX_DEEP_SCAN_SIZE) {
-        showNotification(
-          "Large file detected. Deep scan may take longer or impact performance.",
-          "warning"
-        );
-      }
-
-      let deepScanSawSuspiciousJS = false;
-      let deepScanSawNetworkActivity = false;
       let content = "";
       let malwareFindings = [];
 
-      if (!isAPK && !deepScanEnabled) {
-        content = await this.readFileContent(file);
-      }
-      if (!isAPK && deepScanEnabled) {
-        analysis.riskExposure = "Full streamed deep scan performed";
+      content = await this.readFileContent(file);
+      malwareFindings = this.scanForMalware(content);
+      analysis.findings.push(...malwareFindings);
 
-        await this.readFileContentDeep(file, (chunk) => {
-          const findings = this.scanForMalware(chunk);
-          analysis.findings.push(...findings);
-          malwareFindings.push(...findings);
-          if (findings.length > 0) {
-            analysis.malwareDetected = true;
-          }
-
-          if (this.detectKeylogger(chunk, file.name)) {
-            analysis.keyloggerDetected = true;
-            analysis.spywareProfile.surveillance = true;
-            analysis.spywareProfile.credentialHarvesting = true;
-            analysis.threatScore += 40;
-          }
-
-          // JS abuse patterns
-          if (isJavaScript) {
-            const jsDangerPatterns = [
-              /eval\s*\(/i,
-              /Function\s*\(/i,
-              /atob\s*\(/i,
-              /fromCharCode/i,
-              /document\.cookie/i,
-              /localStorage/i,
-              /fetch\s*\(/i,
-              /XMLHttpRequest/i,
-            ];
-
-            if (jsDangerPatterns.some((p) => p.test(chunk))) {
-              deepScanSawSuspiciousJS = true;
-            }
-          }
-
-          // Network / exfil indicators
-          if (/http|ftp|upload|post|socket/i.test(chunk)) {
-            deepScanSawNetworkActivity = true;
-          }
-        });
-      }
-
-      if (isAPK && this.backendAvailable) {
-        try {
-          const formData = new FormData();
-          formData.append("file", file);
-
-          const res = await fetch(
-            "https://zerorisk-sentinel-backend.onrender.com/api/analyze-apk",
-            {
-              method: "POST",
-              body: formData,
-            }
-          );
-
-          const backend = await res.json();
-
-          if (backend.success) {
-            const level = backend.data.risk_level || "safe";
-          
-            analysis.apkAnalysis = {
-              backendAvailable: true,
-              riskScore: backend.data.risk_score ?? 0,
-              riskLevel: level,
-              riskyPermissions: backend.data.risky_permissions ?? [],
-              explanation:
-                backend.data.explanation || "No explanation available",
-              apkMetadata: backend.data.apk_metadata || {},
-            };
-          
-            analysis.threatScore = backend.data.risk_score;
-            analysis.threatLevel = backend.data.risk_level;
-          
-            analysis.hashes = backend.data.hashes || {};
-            analysis.entropy = backend.data.entropy || 0;
-            analysis.virustotal = backend.data.virustotal || null;
-            analysis.file_type = backend.data.file_type || {};
-          
-            analysis.spywareProfile = {
-              surveillance: false,
-              dataExfiltration: false,
-              persistence: false,
-              stealth: false,
-              credentialHarvesting: false,
-              confidenceScore: 0,
-              networkContext: "apk",
-            };
-            analysis.keyloggerDetected = false;
-            analysis.riskExposure = backend.data.explanation || "Permission-based Android analysis";
-          
-            analysis.findings = [
-              {
-                type: "apk_backend",
-                severity: backend.data.risk_level,
-                description:
-                  "Deep APK permission analysis completed by Python backend",
-              },
-
-              ...(backend.data.findings || [])
-            ];
-          
-            return analysis;
-          }
-        } catch (e) {
-          analysis.apkAnalysis = {
-            backendAvailable: false,
-            status: "Backend APK analysis failed",
-          };
-        }
-      }
-
-      if (!deepScanEnabled) {
-        malwareFindings = this.scanForMalware(content);
-        analysis.findings.push(...malwareFindings);
-      }
-
-      if (!deepScanEnabled && isJavaScript) {
+      if (isJavaScript) {
         const jsDangerPatterns = [
           /eval\s*\(/i,
           /Function\s*\(/i,
@@ -848,16 +1074,6 @@ class CyberGuardSpywareAnalyzer {
         }
       }
 
-      if (deepScanEnabled && isJavaScript && deepScanSawSuspiciousJS) {
-        analysis.findings.push({
-          type: "js_abuse",
-          severity: "medium",
-          description:
-            "Potentially risky JavaScript behavior detected (deep scan)",
-        });
-        analysis.threatScore += 10;
-      }
-
       // Calculate threat score from malware findings
       malwareFindings.forEach((finding) => {
         analysis.spywareProfile.persistence = true;
@@ -868,7 +1084,7 @@ class CyberGuardSpywareAnalyzer {
       });
 
       // Detect keyloggers
-      if (!deepScanEnabled && this.detectKeylogger(content, file.name)) {
+      if (this.detectKeylogger(content, file.name)) {
         analysis.keyloggerDetected = true;
         analysis.spywareProfile.surveillance = true;
         analysis.spywareProfile.credentialHarvesting = true;
@@ -881,8 +1097,7 @@ class CyberGuardSpywareAnalyzer {
       }
 
       // Detect possible data exfiltration behavior
-      // Applied ONLY to script and web files to avoid false positives
-      if (!deepScanEnabled && (isJavaScript || isHtmlOrCss)) {
+      if (isJavaScript || isHtmlOrCss) {
         if (/http|ftp|upload|post|socket/i.test(content)) {
           analysis.spywareProfile.dataExfiltration = true;
 
@@ -896,17 +1111,7 @@ class CyberGuardSpywareAnalyzer {
         }
       }
 
-      if (deepScanEnabled && deepScanSawNetworkActivity) {
-        analysis.spywareProfile.dataExfiltration = true;
-        analysis.spywareProfile.networkContext = isJavaScript
-          ? "script"
-          : "web";
-        analysis.threatScore += isJavaScript ? 12 : 5;
-      }
-
       analysis.threatScore = Math.min(100, analysis.threatScore);
-      // Heuristic scores are used for relative risk visualization
-      // not proof of malicious execution
       analysis.spywareProfile.confidenceScore = Math.min(
         100,
         analysis.threatScore +
@@ -915,19 +1120,8 @@ class CyberGuardSpywareAnalyzer {
           (analysis.spywareProfile.dataExfiltration ? 10 : 0) +
           (analysis.spywareProfile.stealth ? 10 : 0)
       );
-      if (isAPK && analysis.apkAnalysis?.riskLevel) {
-        const level = analysis.apkAnalysis.riskLevel;
 
-        if (level === "critical") analysis.threatLevel = "critical";
-        else if (level === "high") analysis.threatLevel = "high";
-        else if (level === "medium") analysis.threatLevel = "medium";
-        else if (level === "low") analysis.threatLevel = "low";
-      }
-
-      const confidenceScore = analysis.spywareProfile
-        ? analysis.spywareProfile.confidenceScore
-        : 0;
-
+      const confidenceScore = analysis.spywareProfile?.confidenceScore || 0;
       const finalScore = Math.min(
         100,
         Math.max(analysis.threatScore, confidenceScore)
@@ -947,7 +1141,7 @@ class CyberGuardSpywareAnalyzer {
     }
 
     analysis.riskExposure = generateRiskExplanation(analysis);
-  return analysis;
+    return analysis;
   }
 
   async readFileHeader(file) {
@@ -986,24 +1180,6 @@ class CyberGuardSpywareAnalyzer {
     }
 
     return samples.join("\n");
-  }
-  async readFileContentDeep(file, onChunk) {
-    const CHUNK = 128 * 1024; // 128 KB
-    let offset = 0;
-
-    while (offset < file.size) {
-      const slice = file.slice(offset, offset + CHUNK);
-      const text = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result || "");
-        reader.readAsText(slice);
-      });
-
-      onChunk(text);
-      offset += CHUNK;
-
-      await new Promise((r) => setTimeout(r, 0));
-    }
   }
 
   detectFileType(header) {
@@ -1113,11 +1289,18 @@ class CyberGuardSpywareAnalyzer {
       `[SCORE] Threat Score: ${analysis.threatScore}/100`,
       "blue"
     );
+    
+    if (analysis.deep_scan) {
+      this.logToTerminal(`[DEEP SCAN] Sandbox analysis completed`, "purple");
+    }
+    
     this.logToTerminal("────────────────────────────────────────", "gray");
   }
 
   logToTerminal(message, color = "white") {
     const terminal = document.getElementById("terminalOutput");
+    if (!terminal) return;
+    
     const timestamp = new Date().toLocaleTimeString();
     const colorClass = this.getColorClass(color);
 
@@ -1137,6 +1320,7 @@ class CyberGuardSpywareAnalyzer {
       yellow: "text-yellow-400",
       red: "text-red-400",
       gray: "text-gray-500",
+      purple: "text-purple-400",
     };
     return colorMap[color] || "text-white";
   }
@@ -1144,16 +1328,24 @@ class CyberGuardSpywareAnalyzer {
   updateThreatLevel() {
     if (this.analysisResults.size === 0) {
       // Show secure state when no files are analyzed
-      document.getElementById("threatPercentage").textContent = "—";
-      const statusElement =
-        document.getElementById("threatPercentage").nextElementSibling;
-      statusElement.textContent = "NO FILES ANALYZED";
-      statusElement.className = "text-xs text-gray-400";
+      const threatPct = document.getElementById("threatPercentage");
+      if (threatPct) {
+        threatPct.textContent = "—";
+        const statusElement = threatPct.nextElementSibling;
+        if (statusElement) {
+          statusElement.textContent = "NO FILES ANALYZED";
+          statusElement.className = "text-xs text-gray-400";
+        }
+      }
 
       // Set all bars to 100% (secure) when no files
-      document.getElementById("integrityBar").style.width = "100%";
-      document.getElementById("extensionBar").style.width = "100%";
-      document.getElementById("permissionBar").style.width = "100%";
+      const integrityBar = document.getElementById("integrityBar");
+      const extensionBar = document.getElementById("extensionBar");
+      const permissionBar = document.getElementById("permissionBar");
+      
+      if (integrityBar) integrityBar.style.width = "100%";
+      if (extensionBar) extensionBar.style.width = "100%";
+      if (permissionBar) permissionBar.style.width = "100%";
 
       // Set all bars to green (secure)
       this.updateBarColor("integrityBar", 100);
@@ -1174,28 +1366,30 @@ class CyberGuardSpywareAnalyzer {
     const securityScore = Math.max(0, Math.round(100 - averageThreat));
 
     // Update threat percentage display
-    document.getElementById("threatPercentage").textContent = `${Math.round(
-      averageThreat
-    )}%`;
+    const threatPct = document.getElementById("threatPercentage");
+    if (threatPct) {
+      threatPct.textContent = `${Math.round(averageThreat)}%`;
 
-    // Update status based on threat level
-    const statusElement =
-      document.getElementById("threatPercentage").nextElementSibling;
-    if (securityScore <= 20) {
-      statusElement.textContent = "CRITICAL THREAT";
-      statusElement.className = "text-xs text-red-400";
-    } else if (securityScore <= 50) {
-      statusElement.textContent = "HIGH RISK";
-      statusElement.className = "text-xs text-red-400";
-    } else if (securityScore <= 75) {
-      statusElement.textContent = "MODERATE RISK";
-      statusElement.className = "text-xs text-yellow-400";
-    } else if (securityScore <= 90) {
-      statusElement.textContent = "LOW RISK";
-      statusElement.className = "text-xs text-blue-400";
-    } else {
-      statusElement.textContent = "NO THREAT DETECTED";
-      statusElement.className = "text-xs text-green-400";
+      // Update status based on threat level
+      const statusElement = threatPct.nextElementSibling;
+      if (statusElement) {
+        if (securityScore <= 20) {
+          statusElement.textContent = "CRITICAL THREAT";
+          statusElement.className = "text-xs text-red-400";
+        } else if (securityScore <= 50) {
+          statusElement.textContent = "HIGH RISK";
+          statusElement.className = "text-xs text-red-400";
+        } else if (securityScore <= 75) {
+          statusElement.textContent = "MODERATE RISK";
+          statusElement.className = "text-xs text-yellow-400";
+        } else if (securityScore <= 90) {
+          statusElement.textContent = "LOW RISK";
+          statusElement.className = "text-xs text-blue-400";
+        } else {
+          statusElement.textContent = "NO THREAT DETECTED";
+          statusElement.className = "text-xs text-green-400";
+        }
+      }
     }
 
     // Update progress bars
@@ -1209,28 +1403,37 @@ class CyberGuardSpywareAnalyzer {
     const permission = Math.max(0, 100 - threatLevel * 0.6);
 
     // Animate the progress bars
-    anime({
-      targets: "#integrityBar",
-      width: `${integrity}%`,
-      duration: 1000,
-      easing: "easeOutQuart",
-    });
+    if (typeof anime !== 'undefined') {
+      anime({
+        targets: "#integrityBar",
+        width: `${integrity}%`,
+        duration: 1000,
+        easing: "easeOutQuart",
+      });
 
-    anime({
-      targets: "#extensionBar",
-      width: `${extension}%`,
-      duration: 1000,
-      delay: 200,
-      easing: "easeOutQuart",
-    });
+      anime({
+        targets: "#extensionBar",
+        width: `${extension}%`,
+        duration: 1000,
+        delay: 200,
+        easing: "easeOutQuart",
+      });
 
-    anime({
-      targets: "#permissionBar",
-      width: `${permission}%`,
-      duration: 1000,
-      delay: 400,
-      easing: "easeOutQuart",
-    });
+      anime({
+        targets: "#permissionBar",
+        width: `${permission}%`,
+        duration: 1000,
+        delay: 400,
+        easing: "easeOutQuart",
+      });
+    } else {
+      const integrityBar = document.getElementById("integrityBar");
+      const extensionBar = document.getElementById("extensionBar");
+      const permissionBar = document.getElementById("permissionBar");
+      if (integrityBar) integrityBar.style.width = `${integrity}%`;
+      if (extensionBar) extensionBar.style.width = `${extension}%`;
+      if (permissionBar) permissionBar.style.width = `${permission}%`;
+    }
 
     // Update bar colors based on threat level
     this.updateBarColor("integrityBar", integrity);
@@ -1240,6 +1443,8 @@ class CyberGuardSpywareAnalyzer {
 
   updateBarColor(barId, value) {
     const bar = document.getElementById(barId);
+    if (!bar) return;
+    
     if (value >= 80) {
       bar.className = "h-full bg-green-400 rounded";
     } else if (value >= 60) {
@@ -1251,6 +1456,7 @@ class CyberGuardSpywareAnalyzer {
 
   updateFileQueue() {
     const queueContainer = document.getElementById("fileQueue");
+    if (!queueContainer) return;
 
     if (this.files.length === 0) {
       queueContainer.innerHTML =
@@ -1270,6 +1476,11 @@ class CyberGuardSpywareAnalyzer {
 
       const iconClass = this.getFileIconClass(threatLevel);
       const threatColor = this.getThreatColor(threatLevel);
+      
+      // Add deep scan indicator
+      const deepScanBadge = analysis?.deep_scan 
+        ? '<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-400">DEEP</span>' 
+        : '';
 
       fileCard.innerHTML = `
                 <div class="file-icon ${iconClass}">
@@ -1279,12 +1490,10 @@ class CyberGuardSpywareAnalyzer {
                     <div class="text-white font-medium truncate max-w-[180px] sm:max-w-none">
                         ${file.name}
                     </div>
-                    <div class="text-gray-400 text-sm">${this.formatBytes(
-                      file.size
-                    )}</div>
+                    <div class="text-gray-400 text-sm">${this.formatBytes(file.size)}</div>
                 </div>
                 <div class="text-right sm:text-right w-full sm:w-auto mt-2 sm:mt-0">
-                    <div class="text-sm font-medium ${threatColor}">${threatLevel.toUpperCase()}</div>
+                    <div class="text-sm font-medium ${threatColor}">${threatLevel.toUpperCase()}${deepScanBadge}</div>
                     <div class="text-xs text-gray-400">
                         ${
                           analysis
@@ -1359,9 +1568,13 @@ class CyberGuardSpywareAnalyzer {
       }
     });
 
-    document.getElementById("safeCount").textContent = safe;
-    document.getElementById("warningCount").textContent = warning;
-    document.getElementById("threatCount").textContent = threat;
+    const safeCount = document.getElementById("safeCount");
+    const warningCount = document.getElementById("warningCount");
+    const threatCount = document.getElementById("threatCount");
+
+    if (safeCount) safeCount.textContent = safe;
+    if (warningCount) warningCount.textContent = warning;
+    if (threatCount) threatCount.textContent = threat;
 
     // Animate counters
     this.animateCounter("safeCount", safe);
@@ -1371,17 +1584,23 @@ class CyberGuardSpywareAnalyzer {
 
   animateCounter(elementId, targetValue) {
     const element = document.getElementById(elementId);
+    if (!element) return;
+    
     const startValue = parseInt(element.textContent) || 0;
 
-    anime({
-      targets: { value: startValue },
-      value: targetValue,
-      duration: 1000,
-      easing: "easeOutQuart",
-      update: function (anim) {
-        element.textContent = Math.round(anim.animatables[0].target.value);
-      },
-    });
+    if (typeof anime !== 'undefined') {
+      anime({
+        targets: { value: startValue },
+        value: targetValue,
+        duration: 1000,
+        easing: "easeOutQuart",
+        update: function (anim) {
+          element.textContent = Math.round(anim.animatables[0].target.value);
+        },
+      });
+    } else {
+      element.textContent = targetValue;
+    }
   }
 
   formatBytes(bytes) {
@@ -1393,23 +1612,27 @@ class CyberGuardSpywareAnalyzer {
   }
 
   initializeAnimations() {
-    new Typed("#typed-text", {
-      strings: [
-        "Advanced File Security Analysis",
-        "Malware Detection & Risk Analysis",
-        "Extension Spoofing Detection",
-        "Keylogger Identification",
-        "Real-time Threat Assessment",
-      ],
-      typeSpeed: 50,
-      backSpeed: 30,
-      backDelay: 2000,
-      loop: true,
-    });
+    if (typeof Typed !== 'undefined') {
+      new Typed("#typed-text", {
+        strings: [
+          "Advanced File Security Analysis",
+          "Malware Detection & Risk Analysis",
+          "Extension Spoofing Detection",
+          "Keylogger Identification",
+          "Real-time Threat Assessment",
+        ],
+        typeSpeed: 50,
+        backSpeed: 30,
+        backDelay: 2000,
+        loop: true,
+      });
+    }
     this.setupScrollAnimations();
   }
 
   setupScrollAnimations() {
+    if (typeof anime === 'undefined') return;
+    
     const observerOptions = {
       threshold: 0.1,
       rootMargin: "0px 0px -50px 0px",
@@ -1437,6 +1660,8 @@ class CyberGuardSpywareAnalyzer {
 
   startMatrixBackground() {
     const canvas = document.getElementById("matrixCanvas");
+    if (!canvas) return;
+    
     const ctx = canvas.getContext("2d");
 
     canvas.width = window.innerWidth;
@@ -1477,8 +1702,12 @@ class CyberGuardSpywareAnalyzer {
     });
   }
 }
+
+// renderDynamicResults function for results.html
 function renderDynamicResults(results) {
   const container = document.getElementById("dynamicFileResults");
+  if (!container) return;
+  
   container.innerHTML = "";
 
   results.forEach((file, index) => {
@@ -1486,298 +1715,161 @@ function renderDynamicResults(results) {
       file.isAPK === true &&
       file.apkAnalysis &&
       file.apkAnalysis.backendAvailable === true;
+    
     const sectionId = `fileDetails_${index}`;
     const aiId = `aiExplain_${index}`;
+    
     if (isAPK) {
-      const apkSectionId = `apkDetails_${index}`;
-    
-      const card = document.createElement("div");
-      card.className = "analysis-card rounded-xl p-6 border border-blue-500/40";
-    
-      card.innerHTML = `
-        <div class="expandable-section flex justify-between items-center p-4 rounded-lg"
-             onclick="toggleSection('${apkSectionId}')">
-          <div>
-            <h3 class="text-lg font-semibold text-white">
-              📱 ${file.name}
-            </h3>
-            <p class="text-gray-400 text-sm">
-              Android APK Security Analysis
-            </p>
-          </div>
-    
-          <span class="threat-badge threat-${
-            file.apkAnalysis?.riskLevel || "unknown"
-          }">
-            ${(file.apkAnalysis?.riskLevel || "unknown").toUpperCase()}
-          </span>
-        </div>
-        
-        <div id="${apkSectionId}" class="hidden mt-6 space-y-6">
-        
-          <!-- BASIC INFO -->
-          <div class="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              Risk Score:
-              <span class="text-red-400 font-semibold">
-                ${file.apkAnalysis.riskScore}/100
-              </span>
-            </div>
-            <div>
-              Verdict:
-              <span class="text-red-400 font-semibold">
-                ${file.apkAnalysis.riskLevel.toUpperCase()}
-              </span>
-            </div>
-          </div>
-        
-          <!-- SHOW HASHES IF AVAILABLE (MERGED FROM FILE SCANNER) -->
-          ${file.hashes && Object.keys(file.hashes).length > 0 ? `
-          <div class="mt-4 p-3 bg-black rounded border border-gray-700">
-            <h5 class="text-gray-400 text-xs mb-2">FILE HASHES</h5>
-            <div class="font-mono text-xs space-y-1 text-gray-300">
-              <div>MD5: ${file.hashes.md5 || 'N/A'}</div>
-              <div>SHA1: ${file.hashes.sha1 || 'N/A'}</div>
-              <div>SHA256: ${file.hashes.sha256 || 'N/A'}</div>
-            </div>
-          </div>
-          ` : ''}
-          
-          <!-- SHOW ENTROPY IF AVAILABLE -->
-          ${file.entropy ? `
-          <div class="mt-2 text-sm">
-            Entropy: <span class="${file.entropy > 7.5 ? 'text-red-400' : 'text-green-400'}">${file.entropy}/8.0</span>
-            ${file.entropy > 7.5 ? '<span class="text-xs text-gray-500 ml-2">(High - possibly packed)</span>' : ''}
-          </div>
-          ` : ''}
-          
-          <!-- SHOW VIRUSTOTAL IF AVAILABLE -->
-          ${file.virustotal && file.virustotal.found ? `
-          <div class="mt-4 p-3 bg-black rounded border ${file.virustotal.malicious > 0 ? 'border-red-500' : 'border-green-500'}">
-            <h5 class="text-gray-400 text-xs mb-2">VIRUSTOTAL RESULTS</h5>
-            <div class="text-sm">
-              <span class="${file.virustotal.malicious > 0 ? 'text-red-400' : 'text-green-400'} font-bold">
-                ${file.virustotal.malicious}/${file.virustotal.total}
-              </span>
-              <span class="text-gray-400">engines detected this APK</span>
-            </div>
-            ${file.virustotal.malicious > 0 ? `
-            <div class="text-xs text-red-400 mt-1">
-              ⚠️ This APK is known malware!
-            </div>
-            ` : ''}
-          </div>
-          ` : ''}
-            
-          <!-- SHOW MERGED FINDINGS -->
-          ${file.findings && file.findings.length > 0 ? `
-          <div>
-            <h4 class="text-white font-semibold mb-2">Security Findings</h4>
-            <ul class="text-sm text-gray-300 space-y-1">
-              ${file.findings.map(f => `
-                <li class="${f.severity === 'critical' ? 'text-red-400' : f.severity === 'high' ? 'text-yellow-400' : 'text-gray-300'}">
-                  • ${f.description || f.rule || f.type} (${f.severity})
-                </li>
-              `).join('')}
-            </ul>
-          </div>
-          ` : ''}
-              
-          <!-- RISK EXPLANATION -->
-          <div class="text-sm text-gray-300">
-            <span class="text-blue-400 font-semibold">
-              Risk Context:
-            </span>
-            <p class="mt-2">
-              ${file.apkAnalysis.explanation || "No explanation available"}
-            </p>
-          </div>
-              
-          <!-- DANGEROUS PERMISSIONS -->
-          <div>
-            <h4 class="text-white font-semibold mb-2">
-              Dangerous Permissions
-            </h4>
-            <ul class="list-disc ml-5 text-sm text-gray-300 space-y-1">
-              ${
-                file.apkAnalysis.riskyPermissions.length
-                  ? file.apkAnalysis.riskyPermissions
-                      .map(
-                        (p) =>
-                          `<li>
-                            <span class="text-red-400">${p.permission}</span>
-                            <span class="text-gray-400">
-                              (${p.severity}) – ${p.reason}
-                            </span>
-                          </li>`
-                      )
-                      .join("")
-                  : "<li>No high-risk permissions detected</li>"
-              }
-            </ul>
-          </div>
-            
-          <div class="text-xs text-gray-500">
-            Merged analysis: Permissions + File Intelligence • No runtime execution
-          </div>
-        </div>
-      `;
-            
-      container.appendChild(card);
+      renderAPKCard(file, index, container);
       return;
     }
 
     const card = document.createElement("div");
     card.className = "analysis-card rounded-xl p-6";
 
+    // Determine scan type badge
+    let scanBadge = '';
+    if (file.deep_scan) {
+      scanBadge = `<span class="ml-2 text-xs px-2 py-0.5 rounded bg-purple-500/30 text-purple-400 border border-purple-500/50">🔬 Deep Scan</span>`;
+    } else {
+      scanBadge = `<span class="ml-2 text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">Quick Scan</span>`;
+    }
+
     card.innerHTML = `
-            <!-- HEADER -->
-            <div class="expandable-section flex flex-wrap sm:flex-nowrap justify-between items-start gap-3 p-4 rounded-lg"
-                 onclick="toggleSection('${sectionId}')">
+      <!-- HEADER -->
+      <div class="expandable-section flex flex-wrap sm:flex-nowrap justify-between items-start gap-3 p-4 rounded-lg"
+           onclick="toggleSection('${sectionId}')">
+        <div>
+          <h3 class="text-lg font-semibold text-white truncate max-w-[220px] sm:max-w-none">
+              ${file.name}
+          </h3>
+          <p class="text-gray-400 text-sm">
+            Threat Level: ${file.threatLevel.toUpperCase()}${scanBadge}
+          </p>
+        </div>
+        <span class="threat-badge threat-${file.threatLevel} mt-2 sm:mt-0">
+            ${file.threatLevel}
+        </span>
+      </div>
 
-                <div>
-                    <h3 class="text-lg font-semibold text-white truncate max-w-[220px] sm:max-w-none">
-                        ${file.name}
-                    </h3>
+      <!-- DETAILS -->
+      <div id="${sectionId}" class="hidden mt-6 space-y-6">
+        <!-- BASIC INFO -->
+        <div class="grid grid-cols-2 gap-4 text-sm">
+          <div>Threat Score: <span class="text-red-400">${file.threatScore}/100</span></div>
+          <div>Keylogger: <span class="text-red-400">
+              ${file.keyloggerDetected ? "Detected" : "Not Detected"}
+          </span></div>
+        </div>
 
-                    <p class="text-gray-400 text-sm">
-                      Threat Level: ${file.threatLevel.toUpperCase()}
-                      <span class="ml-2 text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
-                        ${
-                          sessionStorage.getItem("deepScan") === "on"
-                            ? "Deep Scan"
-                            : "Quick Scan"
-                        }
-                      </span>
-                    </p>
-                </div>
-
-                <span class="threat-badge threat-${
-                  file.threatLevel
-                } mt-2 sm:mt-0">
-                    ${file.threatLevel}
+        <!-- SHOW HASHES IF AVAILABLE (from backend) -->
+        ${file.hashes ? `
+        <div class="mt-4 p-3 bg-black rounded border border-gray-700">
+            <h5 class="text-gray-400 text-xs mb-2">FILE HASHES</h5>
+            <div class="font-mono text-xs space-y-1 text-gray-300">
+                <div>MD5: ${file.hashes.md5}</div>
+                <div>SHA1: ${file.hashes.sha1}</div>
+                <div>SHA256: ${file.hashes.sha256}</div>
+            </div>
+        </div>
+        ` : ''}
+        
+        <!-- SHOW ENTROPY IF AVAILABLE -->
+        ${file.entropy ? `
+        <div class="mt-2 text-sm">
+            Entropy: <span class="${file.entropy > 7.5 ? 'text-red-400' : 'text-green-400'}">${file.entropy}/8.0</span>
+            ${file.entropy > 7.5 ? '<span class="text-xs text-gray-500 ml-2">(High - possibly packed)</span>' : ''}
+        </div>
+        ` : ''}
+        
+        <!-- SHOW VIRUSTOTAL IF AVAILABLE -->
+        ${file.virustotal && file.virustotal.found ? `
+        <div class="mt-4 p-3 bg-black rounded border ${file.virustotal.malicious > 0 ? 'border-red-500' : 'border-green-500'}">
+            <h5 class="text-gray-400 text-xs mb-2">VIRUSTOTAL RESULTS</h5>
+            <div class="text-sm">
+                <span class="${file.virustotal.malicious > 0 ? 'text-red-400' : 'text-green-400'} font-bold">
+                    ${file.virustotal.malicious}/${file.virustotal.total}
                 </span>
+                <span class="text-gray-400">engines detected this file</span>
             </div>
-
-            <!-- DETAILS -->
-            <div id="${sectionId}" class="hidden mt-6 space-y-6">
-
-                <!-- BASIC INFO -->
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div>Threat Score: <span class="text-red-400">${file.threatScore}/100</span></div>
-                    <div>Keylogger: <span class="text-red-400">
-                        ${file.keyloggerDetected ? "Detected" : "Not Detected"}
-                    </span></div>
-                </div>
-
-                <!-- SHOW HASHES IF AVAILABLE (from backend) -->
-                ${file.hashes ? `
-                <div class="mt-4 p-3 bg-black rounded border border-gray-700">
-                    <h5 class="text-gray-400 text-xs mb-2">FILE HASHES</h5>
-                    <div class="font-mono text-xs space-y-1 text-gray-300">
-                        <div>MD5: ${file.hashes.md5}</div>
-                        <div>SHA1: ${file.hashes.sha1}</div>
-                        <div>SHA256: ${file.hashes.sha256}</div>
-                    </div>
-                </div>
-                ` : ''}
-                
-                <!-- SHOW ENTROPY IF AVAILABLE -->
-                ${file.entropy ? `
-                <div class="mt-2 text-sm">
-                    Entropy: <span class="${file.entropy > 7.5 ? 'text-red-400' : 'text-green-400'}">${file.entropy}/8.0</span>
-                    ${file.entropy > 7.5 ? '<span class="text-xs text-gray-500 ml-2">(High - possibly packed)</span>' : ''}
-                </div>
-                ` : ''}
-                
-                <!-- SHOW VIRUSTOTAL IF AVAILABLE -->
-                ${file.virustotal && file.virustotal.found ? `
-                <div class="mt-4 p-3 bg-black rounded border ${file.virustotal.malicious > 0 ? 'border-red-500' : 'border-green-500'}">
-                    <h5 class="text-gray-400 text-xs mb-2">VIRUSTOTAL RESULTS</h5>
-                    <div class="text-sm">
-                        <span class="${file.virustotal.malicious > 0 ? 'text-red-400' : 'text-green-400'} font-bold">
-                            ${file.virustotal.malicious}/${file.virustotal.total}
-                        </span>
-                        <span class="text-gray-400">engines detected this file</span>
-                    </div>
-                    ${file.virustotal.malicious > 0 ? `
-                    <div class="text-xs text-red-400 mt-1">
-                        ⚠️ This file is known malware!
-                    </div>
-                    ` : ''}
-                </div>
-                ` : ''}
-                <!-- RISK EXPOSURE -->
-                <div class="text-sm text-gray-300">
-                  <span class="text-blue-400 font-semibold">
-                    Risk Context:
-                  </span>
-                  ${
-                    file.riskExposure && file.riskExposure !== "unknown"
-                      ? file.riskExposure
-                      : "No high-risk structural indicators identified"
-                  }
-                </div>
-
-                <!-- SPYWARE PROFILE -->
-                <div>
-                    <h4 class="text-white font-semibold mb-2">Spyware Behavior</h4>
-                    <ul class="text-sm text-gray-300 space-y-1">
-                        <li>Surveillance: ${
-                          file.spywareProfile.surveillance ? "Yes" : "No"
-                        }</li>
-                        <li>Persistence: ${
-                          file.spywareProfile.persistence ? "Yes" : "No"
-                        }</li>
-                        <li>Stealth: ${
-                          file.spywareProfile.stealth ? "Yes" : "No"
-                        }</li>
-                        <li>
-                        ${
-                          file.spywareProfile.networkContext === "web"
-                            ? "Network Activity Detected"
-                            : "Data Exfiltration"
-                        }
-                        : ${file.spywareProfile.dataExfiltration ? "Yes" : "No"}
-                        </li>
-                        <li>Credential Harvesting: ${
-                          file.spywareProfile.credentialHarvesting
-                            ? "Yes"
-                            : "No"
-                        }</li>
-                    </ul>
-                </div>
-
-                <!-- FINDINGS -->
-                <div>
-                    <h4 class="text-white font-semibold mb-2">Findings</h4>
-                    <ul class="text-sm text-gray-300 space-y-1">
-                      ${file.findings
-                        .map(
-                          (f) => `<li>• ${f.description} (${f.severity})</li>`
-                        )
-                        .join("")}
-                    </ul>  
-                </div>
-                <!-- AI EXPLANATION -->
-                <div class="analysis-card p-4">
-                  <h4 class="text-blue-400 font-semibold mb-1">
-                    AI-Assisted Threat Explanation
-                  </h4>
-
-                  <p id="${aiId}" class="text-gray-300 text-sm mb-2">
-                    AI is analyzing this file…
-                  </p>
-
-                  <span
-                    id="${aiId}_badge"
-                    class="text-xs text-gray-500"
-                  >
-                    Explanation source: checking backend…
-                  </span>
-                </div>
+            ${file.virustotal.malicious > 0 ? `
+            <div class="text-xs text-red-400 mt-1">
+                ⚠️ This file is known malware!
             </div>
-        `;
+            ` : ''}
+        </div>
+        ` : ''}
+        
+        <!-- SANDBOX ANALYSIS SECTION (Only for deep scan) -->
+        ${renderSandboxSection(file)}
+        
+        <!-- RISK EXPOSURE -->
+        <div class="text-sm text-gray-300">
+          <span class="text-blue-400 font-semibold">
+            Risk Context:
+          </span>
+          ${
+            file.riskExposure && file.riskExposure !== "unknown"
+              ? file.riskExposure
+              : "No high-risk structural indicators identified"
+          }
+        </div>
+
+        <!-- SPYWARE PROFILE -->
+        <div>
+            <h4 class="text-white font-semibold mb-2">Spyware Behavior</h4>
+            <ul class="text-sm text-gray-300 space-y-1">
+                <li>Surveillance: ${
+                  file.spywareProfile.surveillance ? "Yes" : "No"
+                }</li>
+                <li>Persistence: ${
+                  file.spywareProfile.persistence ? "Yes" : "No"
+                }</li>
+                <li>Stealth: ${
+                  file.spywareProfile.stealth ? "Yes" : "No"
+                }</li>
+                <li>
+                ${
+                  file.spywareProfile.networkContext === "web"
+                    ? "Network Activity Detected"
+                    : "Data Exfiltration"
+                }
+                : ${file.spywareProfile.dataExfiltration ? "Yes" : "No"}
+                </li>
+                <li>Credential Harvesting: ${
+                  file.spywareProfile.credentialHarvesting
+                    ? "Yes"
+                    : "No"
+                }</li>
+            </ul>
+        </div>
+
+        <!-- FINDINGS -->
+        <div>
+            <h4 class="text-white font-semibold mb-2">Findings (${file.findings.length})</h4>
+            <ul class="text-sm text-gray-300 space-y-1">
+              ${file.findings
+                .map(
+                  (f) => `<li class="${f.severity === 'critical' ? 'text-red-400' : f.severity === 'high' ? 'text-yellow-400' : 'text-gray-300'}">• ${f.description} (${f.severity}${f.source === 'sandbox' ? ' - sandbox' : ''})</li>`
+                )
+                .join("")}
+            </ul>  
+        </div>
+        
+        <!-- AI EXPLANATION -->
+        <div class="analysis-card p-4">
+          <h4 class="text-blue-400 font-semibold mb-1">
+            AI-Assisted Threat Explanation
+          </h4>
+          <p id="${aiId}" class="text-gray-300 text-sm mb-2">
+            AI is analyzing this file…
+          </p>
+          <span id="${aiId}_badge" class="text-xs text-gray-500">
+            Explanation source: checking backend…
+          </span>
+        </div>
+      </div>
+    `;
 
     container.appendChild(card);
 
@@ -1787,6 +1879,243 @@ function renderDynamicResults(results) {
     }
   });
 }
+
+function renderSandboxSection(file) {
+  if (!file.deep_scan || !file.sandbox_data) return '';
+  
+  const sd = file.sandbox_data;
+  const verdict = sd.verdict || 'unknown';
+  
+  // Verdict badges
+  let verdictBadges = '';
+  if (verdict === 'malicious') {
+    verdictBadges += `<span class="px-2 py-1 bg-red-500 bg-opacity-30 text-red-400 text-xs rounded mr-2">🚨 MALICIOUS</span>`;
+  } else if (verdict === 'suspicious') {
+    verdictBadges += `<span class="px-2 py-1 bg-yellow-500 bg-opacity-30 text-yellow-400 text-xs rounded mr-2">⚠️ SUSPICIOUS</span>`;
+  } else {
+    verdictBadges += `<span class="px-2 py-1 bg-green-500 bg-opacity-20 text-green-400 text-xs rounded mr-2">✅ CLEAN</span>`;
+  }
+  
+  // Network stats
+  const networkHtml = sd.network_connections !== undefined ? `
+    <div class="mb-4">
+      <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">🌐 Network Activity</h4>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div class="p-3 rounded-lg bg-gray-800 border border-gray-700 text-center">
+          <div class="text-2xl font-bold text-blue-400">${sd.processes_spawned || 0}</div>
+          <div class="text-xs text-gray-500">Processes</div>
+        </div>
+        <div class="p-3 rounded-lg ${sd.network_connections > 0 ? 'bg-yellow-900/30 border-yellow-500' : 'bg-gray-800 border-gray-700'} text-center">
+          <div class="text-2xl font-bold ${sd.network_connections > 0 ? 'text-yellow-400' : 'text-green-400'}">${sd.network_connections || 0}</div>
+          <div class="text-xs text-gray-500">Network Connections</div>
+        </div>
+        <div class="p-3 rounded-lg bg-gray-800 border border-gray-700 text-center">
+          <div class="text-2xl font-bold text-purple-400">${sd.domains_contacted?.length || 0}</div>
+          <div class="text-xs text-gray-500">Domains Contacted</div>
+        </div>
+        <div class="p-3 rounded-lg bg-gray-800 border border-gray-700 text-center">
+          <div class="text-2xl font-bold text-cyan-400">${sd.extracted_files_count || 0}</div>
+          <div class="text-xs text-gray-500">Files Dropped</div>
+        </div>
+      </div>
+    </div>
+  ` : '';
+  
+  // MITRE ATT&CK techniques
+  const mitreHtml = sd.mitre_techniques && sd.mitre_techniques.length > 0 ? `
+    <div class="mb-4">
+      <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">🎯 MITRE ATT&CK Techniques</h4>
+      <div class="flex flex-wrap gap-2">
+        ${sd.mitre_techniques.slice(0, 5).map(t => `<span class="px-3 py-1 bg-red-900/30 border border-red-500/50 text-red-400 text-sm rounded-full">${t}</span>`).join('')}
+      </div>
+    </div>
+  ` : '';
+  
+  // Environment info
+  const envHtml = sd.environment ? `
+    <div class="mb-4">
+      <h4 class="text-gray-400 text-sm mb-2 font-semibold uppercase tracking-wider">🖥️ Sandbox Environment</h4>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+        <div class="p-2 rounded bg-gray-800"><span class="text-gray-500">Environment:</span> <span class="text-gray-300">${sd.environment}</span></div>
+        <div class="p-2 rounded bg-gray-800"><span class="text-gray-500">Analysis Time:</span> <span class="text-gray-300">${sd.analysis_time || 'N/A'}s</span></div>
+        <div class="p-2 rounded bg-gray-800"><span class="text-gray-500">Packer:</span> <span class="text-gray-300">${sd.packer || 'None'}</span></div>
+      </div>
+    </div>
+  ` : '';
+  
+  // Report link
+  const reportHtml = sd.report_url ? `
+    <div class="mt-4">
+      <a href="${sd.report_url}" target="_blank" class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+        </svg>
+        View Full Sandbox Report
+      </a>
+    </div>
+  ` : '';
+  
+  return `
+    <div class="mb-6 p-4 rounded-lg bg-purple-900/20 border border-purple-500/50">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-purple-400 font-semibold flex items-center text-lg">
+          <span class="mr-2">🔬</span> Hybrid Analysis Sandbox
+        </h4>
+        <div>${verdictBadges}</div>
+      </div>
+      
+      ${networkHtml}
+      ${mitreHtml}
+      ${envHtml}
+      ${reportHtml}
+    </div>
+  `;
+}
+
+function renderAPKCard(file, index, container) {
+  const apkSectionId = `apkDetails_${index}`;
+  
+  const card = document.createElement("div");
+  card.className = "analysis-card rounded-xl p-6 border border-blue-500/40";
+
+  // Deep scan badge for APK
+  const deepScanBadge = file.deep_scan 
+    ? `<span class="ml-2 text-xs px-2 py-0.5 rounded bg-purple-500/30 text-purple-400 border border-purple-500/50">🔬 Deep Scan</span>`
+    : '';
+
+  card.innerHTML = `
+    <div class="expandable-section flex justify-between items-center p-4 rounded-lg"
+         onclick="toggleSection('${apkSectionId}')">
+      <div>
+        <h3 class="text-lg font-semibold text-white">
+          📱 ${file.name}
+        </h3>
+        <p class="text-gray-400 text-sm">
+          Android APK Security Analysis${deepScanBadge}
+        </p>
+      </div>
+
+      <span class="threat-badge threat-${file.apkAnalysis?.riskLevel || "unknown"}">
+        ${(file.apkAnalysis?.riskLevel || "unknown").toUpperCase()}
+      </span>
+    </div>
+    
+    <div id="${apkSectionId}" class="hidden mt-6 space-y-6">
+    
+      <!-- BASIC INFO -->
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          Risk Score:
+          <span class="text-red-400 font-semibold">
+            ${file.apkAnalysis.riskScore}/100
+          </span>
+        </div>
+        <div>
+          Verdict:
+          <span class="text-red-400 font-semibold">
+            ${file.apkAnalysis.riskLevel.toUpperCase()}
+          </span>
+        </div>
+      </div>
+    
+      <!-- SHOW HASHES IF AVAILABLE (MERGED FROM FILE SCANNER) -->
+      ${file.hashes && Object.keys(file.hashes).length > 0 ? `
+      <div class="mt-4 p-3 bg-black rounded border border-gray-700">
+        <h5 class="text-gray-400 text-xs mb-2">FILE HASHES</h5>
+        <div class="font-mono text-xs space-y-1 text-gray-300">
+          <div>MD5: ${file.hashes.md5 || 'N/A'}</div>
+          <div>SHA1: ${file.hashes.sha1 || 'N/A'}</div>
+          <div>SHA256: ${file.hashes.sha256 || 'N/A'}</div>
+        </div>
+      </div>
+      ` : ''}
+      
+      <!-- SHOW ENTROPY IF AVAILABLE -->
+      ${file.entropy ? `
+      <div class="mt-2 text-sm">
+        Entropy: <span class="${file.entropy > 7.5 ? 'text-red-400' : 'text-green-400'}">${file.entropy}/8.0</span>
+        ${file.entropy > 7.5 ? '<span class="text-xs text-gray-500 ml-2">(High - possibly packed)</span>' : ''}
+      </div>
+      ` : ''}
+      
+      <!-- SHOW VIRUSTOTAL IF AVAILABLE -->
+      ${file.virustotal && file.virustotal.found ? `
+      <div class="mt-4 p-3 bg-black rounded border ${file.virustotal.malicious > 0 ? 'border-red-500' : 'border-green-500'}">
+        <h5 class="text-gray-400 text-xs mb-2">VIRUSTOTAL RESULTS</h5>
+        <div class="text-sm">
+          <span class="${file.virustotal.malicious > 0 ? 'text-red-400' : 'text-green-400'} font-bold">
+            ${file.virustotal.malicious}/${file.virustotal.total}
+          </span>
+          <span class="text-gray-400">engines detected this APK</span>
+        </div>
+        ${file.virustotal.malicious > 0 ? `
+        <div class="text-xs text-red-400 mt-1">
+          ⚠️ This APK is known malware!
+        </div>
+        ` : ''}
+      </div>
+      ` : ''}
+      
+      <!-- SANDBOX SECTION FOR APK -->
+      ${renderSandboxSection(file)}
+        
+      <!-- SHOW MERGED FINDINGS -->
+      ${file.findings && file.findings.length > 0 ? `
+      <div>
+        <h4 class="text-white font-semibold mb-2">Security Findings</h4>
+        <ul class="text-sm text-gray-300 space-y-1">
+          ${file.findings.map(f => `
+            <li class="${f.severity === 'critical' ? 'text-red-400' : f.severity === 'high' ? 'text-yellow-400' : 'text-gray-300'}">
+              • ${f.description || f.rule || f.type} (${f.severity}${f.source === 'sandbox' ? ' - sandbox' : ''})
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+      ` : ''}
+          
+      <!-- RISK EXPLANATION -->
+      <div class="text-sm text-gray-300">
+        <span class="text-blue-400 font-semibold">
+          Risk Context:
+        </span>
+        <p class="mt-2">
+          ${file.apkAnalysis.explanation || "No explanation available"}
+        </p>
+      </div>
+          
+      <!-- DANGEROUS PERMISSIONS -->
+      <div>
+        <h4 class="text-white font-semibold mb-2">
+          Dangerous Permissions
+        </h4>
+        <ul class="list-disc ml-5 text-sm text-gray-300 space-y-1">
+          ${
+            file.apkAnalysis.riskyPermissions.length
+              ? file.apkAnalysis.riskyPermissions
+                  .map(
+                    (p) =>
+                      `<li>
+                        <span class="text-red-400">${p.permission}</span>
+                        <span class="text-gray-400">
+                          (${p.severity}) – ${p.reason}
+                        </span>
+                      </li>`
+                  )
+                  .join("")
+              : "<li>No high-risk permissions detected</li>"
+          }
+        </ul>
+      </div>
+        
+      <div class="text-xs text-gray-500">
+        ${file.deep_scan ? 'Merged analysis: Permissions + File Intelligence + Sandbox • Runtime execution analyzed' : 'Merged analysis: Permissions + File Intelligence • No runtime execution'}
+      </div>
+    </div>
+  `;
+        
+  container.appendChild(card);
+}
+
 function showAIQuotaMessage() {
   if (sessionStorage.getItem("quotaMsgShown") === "true") return;
 
@@ -1857,13 +2186,7 @@ async function runAIExplanation(file, targetId) {
         }
       
         showAIQuotaMessage();
-      
       }
-
-
-
-
-
     }
   } catch (e) {
     // silently fail → fallback below
@@ -1923,9 +2246,11 @@ async function runAIExplanation(file, targetId) {
 // Initialize the application when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
   new CyberGuardSpywareAnalyzer();
-  updateBackendStatus();
-
-  setInterval(updateBackendStatus, 30000);
+  
+  if (typeof updateBackendStatus === 'function') {
+    updateBackendStatus();
+    setInterval(updateBackendStatus, 30000);
+  }
 });
 
 // Add some utility functions for enhanced functionality
@@ -1965,24 +2290,30 @@ function showNotification(message, type = "info") {
   document.body.appendChild(notification);
 
   // Animate in
-  anime({
-    targets: notification,
-    translateX: [300, 0],
-    opacity: [0, 1],
-    duration: 300,
-    easing: "easeOutQuart",
-  });
+  if (typeof anime !== 'undefined') {
+    anime({
+      targets: notification,
+      translateX: [300, 0],
+      opacity: [0, 1],
+      duration: 300,
+      easing: "easeOutQuart",
+    });
+  }
 
   // Auto remove after 5 seconds
   setTimeout(() => {
-    anime({
-      targets: notification,
-      translateX: [0, 300],
-      opacity: [1, 0],
-      duration: 300,
-      easing: "easeInQuart",
-      complete: () => notification.remove(),
-    });
+    if (typeof anime !== 'undefined') {
+      anime({
+        targets: notification,
+        translateX: [0, 300],
+        opacity: [1, 0],
+        duration: 300,
+        easing: "easeInQuart",
+        complete: () => notification.remove(),
+      });
+    } else {
+      notification.remove();
+    }
   }, 5000);
 }
 
@@ -1995,217 +2326,147 @@ function toggleAnalysisDropdown(type) {
     dropdown.classList.remove("hidden");
     icon.classList.add("rotated");
 
-    anime({
-      targets: dropdown,
-      opacity: [0, 1],
-      maxHeight: [0, "1000px"],
-      duration: 300,
-      easing: "easeOutQuart",
-    });
-  } else {
-    anime({
-      targets: dropdown,
-      opacity: [1, 0],
-      maxHeight: ["200px", 0],
-      duration: 200,
-      easing: "easeInQuart",
-      complete: () => {
-        dropdown.classList.add("hidden");
-        icon.classList.remove("rotated");
-      },
-    });
-  }
-}
-
-// Export functionality for detailed reports
-function exportReport() {
-  // This would generate a comprehensive PDF report
-  showNotification("Report export functionality coming soon!", "info");
-}
-
-// Share analysis functionality
-function shareAnalysis() {
-  // This would generate a shareable link
-  showNotification("Analysis sharing functionality coming soon!", "info");
-}
-
-// Deep scan functionality
-function performDeepScan() {
-  showNotification(
-    "Deep scan initiated - this may take longer for thorough analysis",
-    "warning"
-  );
-  // This would trigger more intensive analysis
-}
-// url shit
-// phone swipe
-
-let touchStartX = 0;
-let touchEndX = 0;
-
-const SWIPE_THRESHOLD = 60;
-const pages = ["index.html", "results.html", "about.html"];
-// only n mobile
-const swipeHint = document.getElementById("swipeHint");
-
-function hideSwipeHint() {
-  if (!swipeHint) return;
-
-  sessionStorage.setItem("swipeUsed", "true");
-  swipeHint.classList.add("opacity-0");
-
-  setTimeout(() => {
-    swipeHint.remove();
-  }, 300);
-}
-
-// only one t
-if (sessionStorage.getItem("swipeUsed")) {
-  swipeHint?.remove();
-}
-
-function getCurrentPageIndex() {
-  let currentPage = window.location.pathname.split("/").pop();
-  if (!currentPage || currentPage === "") {
-    currentPage = "index.html";
-  }
-
-  return pages.indexOf(currentPage);
-}
-
-function handleSwipe() {
-  const deltaX = touchStartX - touchEndX;
-  const currentIndex = getCurrentPageIndex();
-
-  if (currentIndex === -1) return;
-  hideSwipeHint();
-
-  // next page
-  if (deltaX > SWIPE_THRESHOLD && currentIndex < pages.length - 1) {
-    document.body.classList.add("page-exit-left");
-    setTimeout(() => {
-      window.location.href = pages[currentIndex + 1];
-    }, 260);
-  }
-
-  // previous page
-  if (deltaX < -SWIPE_THRESHOLD && currentIndex > 0) {
-    document.body.classList.add("page-exit-right");
-    setTimeout(() => {
-      window.location.href = pages[currentIndex - 1];
-    }, 260);
-  }
-}
-let touchStartY = 0;
-
-window.addEventListener("touchstart", (e) => {
-  touchStartX = e.changedTouches[0].screenX;
-  touchStartY = e.changedTouches[0].screenY;
-});
-
-window.addEventListener("touchend", (e) => {
-  touchEndX = e.changedTouches[0].screenX;
-  const touchEndY = e.changedTouches[0].screenY;
-
-  if (Math.abs(touchEndY - touchStartY) > 80) return;
-
-  handleSwipe();
-});
-async function updateBackendStatus() {
-  const dot = document.getElementById("backendStatusDot");
-  const text = document.getElementById("backendStatusText");
-
-  if (!dot || !text) return;
-
-  try {
-    const res = await fetch(
-      "https://zerorisk-sentinel-backend.onrender.com/api/status",
-      { cache: "no-store" }
-    );
-
-    if (!res.ok) throw new Error("Backend error");
-
-    dot.className = "w-2 h-2 rounded-full bg-green-400 transition-colors";
-    text.textContent = "Backend Active";
-  } catch (err) {
-    dot.className = "w-2 h-2 rounded-full bg-red-400 transition-colors";
-    text.textContent = "Backend Offline (Heuristic Mode)";
-  }
-}
-
-function setScanMode(mode) {
-  sessionStorage.setItem("scanMode", mode);
-  updateDemoUI();
-}
-
-function updateDemoUI() {
-  const mode = sessionStorage.getItem("scanMode") || "live";
-
-  const demoFiles = document.getElementById("demoSamples");
-  if (demoFiles) {
-    demoFiles.classList.toggle("hidden", mode !== "demo");
-  }
-
-  const demoUrls = document.getElementById("demoUrls");
-  if (demoUrls) {
-    if (mode === "demo") {
-      demoUrls.classList.remove("hidden");
-
-      demoUrls.querySelectorAll(".analysis-card").forEach((card) => {
-        card.style.opacity = "1";
-        card.style.transform = "translateY(0)";
+    if (typeof anime !== 'undefined') {
+      anime({
+        targets: dropdown,
+        opacity: [0, 1],
+        maxHeight: [0, "1000px"],
+        duration: 500,
+        easing: "easeOutQuart",
       });
-
-      setTimeout(() => {
-        demoUrls.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    } else {
-      demoUrls.classList.add("hidden");
     }
-  }
-
-  const liveBtn = document.getElementById("liveModeBtn");
-  const demoBtn = document.getElementById("demoModeBtn");
-
-  if (liveBtn && demoBtn) {
-    if (mode === "demo") {
-      demoBtn.classList.add("bg-blue-600", "text-white");
-      demoBtn.classList.remove("bg-gray-700", "text-gray-300");
-
-      liveBtn.classList.remove("bg-blue-600", "text-white");
-      liveBtn.classList.add("bg-gray-700", "text-gray-300");
-    } else {
-      liveBtn.classList.add("bg-blue-600", "text-white");
-      liveBtn.classList.remove("bg-gray-700", "text-gray-300");
-
-      demoBtn.classList.remove("bg-blue-600", "text-white");
-      demoBtn.classList.add("bg-gray-700", "text-gray-300");
-    }
-  }
-}
-
-document.addEventListener("DOMContentLoaded", updateDemoUI);
-//deep scan thingy
-function toggleDeepScan(enabled) {
-  sessionStorage.setItem("deepScan", enabled ? "on" : "off");
-
-  const track = document.getElementById("deepScanTrack");
-  const thumb = document.getElementById("deepScanThumb");
-
-  if (enabled) {
-    track.classList.remove("bg-gray-700");
-    track.classList.add("bg-blue-600");
-    thumb.style.transform = "translateX(20px)";
   } else {
-    track.classList.add("bg-gray-700");
-    track.classList.remove("bg-blue-600");
-    thumb.style.transform = "translateX(0)";
+    if (typeof anime !== 'undefined') {
+      anime({
+        targets: dropdown,
+        opacity: [1, 0],
+        maxHeight: ["1000px", 0],
+        duration: 300,
+        easing: "easeInQuart",
+        complete: () => {
+          dropdown.classList.add("hidden");
+          icon.classList.remove("rotated");
+        },
+      });
+    } else {
+      dropdown.classList.add("hidden");
+      icon.classList.remove("rotated");
+    }
   }
 }
-// restore toggle state
-document.addEventListener("DOMContentLoaded", () => {
-  const enabled = sessionStorage.getItem("deepScan") === "on";
-  const checkbox = document.getElementById("deepScanToggle");
-  if (checkbox) checkbox.checked = enabled;
-  toggleDeepScan(enabled);
-});
+
+// Toggle section function for results.html
+function toggleSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+  
+  const button = section.previousElementSibling;
+  const icon = button?.querySelector(".expand-icon");
+
+  if (section.classList.contains("hidden")) {
+    section.classList.remove("hidden");
+    if (button) button.classList.add("expanded");
+
+    if (typeof anime !== 'undefined') {
+      anime({
+        targets: section,
+        opacity: [0, 1],
+        maxHeight: [0, "2000px"],
+        duration: 500,
+        easing: "easeOutQuart",
+      });
+    }
+  } else {
+    if (typeof anime !== 'undefined') {
+      anime({
+        targets: section,
+        opacity: [1, 0],
+        maxHeight: ["2000px", 0],
+        duration: 300,
+        easing: "easeInQuart",
+        complete: () => {
+          section.classList.add("hidden");
+          if (button) button.classList.remove("expanded");
+        },
+      });
+    } else {
+      section.classList.add("hidden");
+      if (button) button.classList.remove("expanded");
+    }
+  }
+}
+
+// Scan mode functions
+function setScanMode(mode) {
+  const liveBtn = document.getElementById('liveModeBtn');
+  const demoBtn = document.getElementById('demoModeBtn');
+  const demoSamples = document.getElementById('demoSamples');
+  
+  if (liveBtn && demoBtn) {
+    if (mode === 'live') {
+      liveBtn.className = 'px-4 py-2 rounded-lg bg-blue-600 text-white font-medium';
+      demoBtn.className = 'px-4 py-2 rounded-lg bg-gray-700 text-gray-300 font-medium hover:bg-gray-600';
+      if (demoSamples) demoSamples.classList.add('hidden');
+    } else {
+      demoBtn.className = 'px-4 py-2 rounded-lg bg-blue-600 text-white font-medium';
+      liveBtn.className = 'px-4 py-2 rounded-lg bg-gray-700 text-gray-300 font-medium hover:bg-gray-600';
+      if (demoSamples) demoSamples.classList.remove('hidden');
+    }
+  }
+  
+  sessionStorage.setItem('scanMode', mode);
+}
+
+// Deep scan toggle function
+function toggleDeepScan(enabled) {
+  const track = document.getElementById('deepScanTrack');
+  const thumb = document.getElementById('deepScanThumb');
+  
+  if (track && thumb) {
+    if (enabled) {
+      track.classList.remove('bg-gray-700');
+      track.classList.add('bg-purple-600');
+      thumb.classList.add('translate-x-5');
+    } else {
+      track.classList.add('bg-gray-700');
+      track.classList.remove('bg-purple-600');
+      thumb.classList.remove('translate-x-5');
+    }
+  }
+  
+  sessionStorage.setItem('deepScan', enabled ? 'on' : 'off');
+}
+
+// Backend status update function
+async function updateBackendStatus() {
+  const statusDot = document.getElementById('backendStatusDot');
+  const statusText = document.getElementById('backendStatusText');
+  
+  if (!statusDot || !statusText) return;
+  
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/status`);
+    if (res.ok) {
+      const data = await res.json();
+      
+      if (data.file_scanner?.available) {
+        if (data.file_scanner?.yara_loaded) {
+          statusDot.className = 'w-2 h-2 rounded-full bg-green-400';
+          statusText.textContent = 'Backend Active (Better scanning)';
+        } else {
+          statusDot.className = 'w-2 h-2 rounded-full bg-yellow-400';
+          statusText.textContent = 'Backend Online';
+        }
+      } else {
+        statusDot.className = 'w-2 h-2 rounded-full bg-yellow-400';
+        statusText.textContent = 'Backend Limited';
+      }
+    } else {
+      statusDot.className = 'w-2 h-2 rounded-full bg-red-400';
+      statusText.textContent = 'Backend Offline (Local Mode)';
+    }
+  } catch (e) {
+    statusDot.className = 'w-2 h-2 rounded-full bg-red-400';
+    statusText.textContent = 'Backend Offline (Local Mode)';
+  }
+}
