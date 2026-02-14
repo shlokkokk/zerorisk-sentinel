@@ -1,18 +1,20 @@
-const REPORT_VERSION = "2.1.1"; // added urlscan data and deep scan stats
+const REPORT_VERSION = "2.2.0";
 let selectedFormat = null;
 
-// CHART DATA CALCULATION
+// ==================== CHART DATA CALCULATION ====================
 
 function calculateReportChartData() {
   const fileData = JSON.parse(sessionStorage.getItem("analysisResults") || "[]");
   
   let safe = 0, warning = 0, critical = 0, totalScore = 0;
+  let sandboxCount = 0;
 
   fileData.forEach((file) => {
     if (file.threatLevel === "safe") safe++;
     else if (file.threatLevel === "low" || file.threatLevel === "medium") warning++;
     else if (file.threatLevel === "high" || file.threatLevel === "critical") critical++;
     totalScore += file.threatScore || 0;
+    if (file.deep_scan || file.sandbox_data) sandboxCount++;
   });
 
   const avgThreat = fileData.length ? Math.round(totalScore / fileData.length) : 0;
@@ -21,7 +23,8 @@ function calculateReportChartData() {
     warning, 
     critical, 
     avgScore: Math.max(0, 100 - avgThreat),
-    totalFiles: fileData.length
+    totalFiles: fileData.length,
+    sandboxCount
   };
 }
 
@@ -55,15 +58,10 @@ function calculateURLStats() {
   };
 }
 
-
-// MODAL CONTROLS
-
-
 function openReportModal() {
   const modal = document.getElementById("reportModal");
   if (!modal) return;
 
-  // Show modal with animation
   modal.style.opacity = "1";
   modal.style.visibility = "visible";
   
@@ -73,7 +71,6 @@ function openReportModal() {
     modalContent.style.opacity = "1";
   }
 
-  // Reset selection state
   selectedFormat = null;
   document.querySelectorAll(".format-opt").forEach((el) => {
     el.style.borderColor = "rgba(0,212,255,0.2)";
@@ -82,7 +79,6 @@ function openReportModal() {
     el.style.transform = "scale(1)";
   });
 
-  // Disable generate button initially
   const genBtn = document.getElementById("genReportBtn");
   if (genBtn) {
     genBtn.disabled = true;
@@ -108,7 +104,6 @@ function closeReportModal() {
 function selectFormat(format) {
   selectedFormat = format;
 
-  // Reset all options
   document.querySelectorAll(".format-opt").forEach((el) => {
     el.style.borderColor = "rgba(0,212,255,0.2)";
     el.style.background = "rgba(255,255,255,0.03)";
@@ -116,7 +111,6 @@ function selectFormat(format) {
     el.style.transform = "scale(1)";
   });
 
-  // Highlight selected
   const selectedEl = document.getElementById("fmt-" + format);
   if (selectedEl) {
     selectedEl.style.borderColor = "#00d4ff";
@@ -125,7 +119,6 @@ function selectFormat(format) {
     selectedEl.style.transform = "scale(1.02)";
   }
 
-  // Enable generate button
   const genBtn = document.getElementById("genReportBtn");
   if (genBtn) {
     genBtn.disabled = false;
@@ -134,9 +127,7 @@ function selectFormat(format) {
   }
 }
 
-
-// MAIN REPORT GENERATION
-
+// ==================== MAIN REPORT GENERATION ====================
 
 async function generateSelectedReport() {
   if (!selectedFormat) return;
@@ -144,7 +135,6 @@ async function generateSelectedReport() {
   const fileData = JSON.parse(sessionStorage.getItem("analysisResults") || "[]");
   const urlData = JSON.parse(sessionStorage.getItem("urlResults") || "[]");
 
-  // Check if there's any data to report
   if (fileData.length === 0 && urlData.length === 0) {
     showNotification("No scan data available. Please scan files or URLs first.", "warning");
     closeReportModal();
@@ -154,7 +144,6 @@ async function generateSelectedReport() {
   const btn = document.getElementById("genReportBtn");
   const originalText = btn ? btn.innerHTML : "Generate Report";
 
-  // Show loading state
   if (btn) {
     btn.innerHTML = '<span class="animate-pulse">Generating...</span>';
     btn.disabled = true;
@@ -180,9 +169,7 @@ async function generateSelectedReport() {
   }
 }
 
-
-// JSON REPORT GENERATION
-
+// ==================== JSON REPORT ====================
 
 async function generateJSONReport(fileData, urlData) {
   const chartData = calculateReportChartData();
@@ -201,6 +188,7 @@ async function generateJSONReport(fileData, urlData) {
       totalScans: fileData.length + urlData.length,
       filesScanned: fileData.length,
       urlsScanned: urlData.length,
+      filesWithSandbox: chartData.sandboxCount,
       urlsWithDeepScan: urlStats.deepScan,
       overallSecurityScore: chartData.avgScore,
       threatBreakdown: {
@@ -213,6 +201,7 @@ async function generateJSONReport(fileData, urlData) {
     fileAnalysis: {
       scanned: fileData.length > 0,
       totalFiles: fileData.length,
+      sandboxScans: chartData.sandboxCount,
       statistics: {
         safe: chartData.safe,
         warning: chartData.warning,
@@ -230,6 +219,8 @@ async function generateJSONReport(fileData, urlData) {
         entropy: file.entropy || null,
         fileType: file.fileType || null,
         virustotal: file.virustotal || null,
+        deepScan: file.deep_scan || false,
+        sandboxData: file.sandbox_data || null,
         keyloggerDetected: file.keyloggerDetected || false,
         malwareDetected: file.malwareDetected || false,
         extensionMismatch: file.extensionMismatch || false,
@@ -275,9 +266,7 @@ async function generateJSONReport(fileData, urlData) {
   URL.revokeObjectURL(url);
 }
 
-
-// PDF REPORT GENERATION
-
+// ==================== PDF REPORT ====================
 
 async function generatePDFReport(fileData, urlData) {
   const { jsPDF } = window.jspdf;
@@ -294,15 +283,15 @@ async function generatePDFReport(fileData, urlData) {
 
   // Color scheme
   const colors = {
-    primary: [0, 212, 255],      // Cyan #00d4ff
-    secondary: [0, 255, 65],     // Green #00ff41
-    warning: [255, 107, 53],     // Orange #ff6b35
-    danger: [220, 20, 60],       // Red #dc143c
-    dark: [10, 10, 10],          // Black #0a0a0a
-    panel: [26, 26, 26],         // Panel bg #1a1a1a
-    gray: [128, 128, 128],       // Gray
-    white: [255, 255, 255],      // White
-    purple: [168, 85, 247]       // Purple for Deep Scan
+    primary: [0, 212, 255],
+    secondary: [0, 255, 65],
+    warning: [255, 107, 53],
+    danger: [220, 20, 60],
+    dark: [10, 10, 10],
+    panel: [26, 26, 26],
+    gray: [128, 128, 128],
+    white: [255, 255, 255],
+    purple: [168, 85, 247]
   };
 
   // Helper functions
@@ -331,7 +320,6 @@ async function generatePDFReport(fileData, urlData) {
     if (y + neededSpace > pageHeight - margin) {
       doc.addPage();
       y = 20;
-      // Header on new page
       doc.setFillColor(...colors.dark);
       doc.rect(0, 0, pageWidth, 10, "F");
       addText("ZeroRisk Sentinel - Security Report", margin, 7, 8, colors.primary, "bold");
@@ -351,9 +339,8 @@ async function generatePDFReport(fileData, urlData) {
     }
   };
 
-  //  COVER PAGE 
+  // ==================== COVER PAGE ====================
   
-  // Background
   doc.setFillColor(...colors.dark);
   doc.rect(0, 0, pageWidth, pageHeight, "F");
 
@@ -385,7 +372,7 @@ async function generatePDFReport(fileData, urlData) {
   doc.setFillColor(...colors.panel);
   doc.setDrawColor(...colors.primary);
   doc.setLineWidth(0.3);
-  doc.roundedRect(margin + 20, metaBoxY, pageWidth - (margin * 2) - 40, 45, 3, 3, "FD");
+  doc.roundedRect(margin + 20, metaBoxY, pageWidth - (margin * 2) - 40, 50, 3, 3, "FD");
 
   y += 10;
   addText(`Report Generated: ${new Date().toLocaleString()}`, pageWidth / 2, y, 10, colors.gray, "normal", "center");
@@ -398,14 +385,17 @@ async function generatePDFReport(fileData, urlData) {
   const totalItems = fileData.length + urlData.length;
   addText(`Items Scanned: ${totalItems} (Files: ${fileData.length}, URLs: ${urlData.length})`, pageWidth / 2, y, 10, colors.white, "bold", "center");
   
-  if (urlStats.deepScan > 0) {
+  if (chartData.sandboxCount > 0 || urlStats.deepScan > 0) {
     y += 7;
-    addText(`Deep Scans: ${urlStats.deepScan}`, pageWidth / 2, y, 9, colors.purple, "normal", "center");
+    const sandboxText = [];
+    if (chartData.sandboxCount > 0) sandboxText.push(`File Sandboxes: ${chartData.sandboxCount}`);
+    if (urlStats.deepScan > 0) sandboxText.push(`URL Deep Scans: ${urlStats.deepScan}`);
+    addText(sandboxText.join(" | "), pageWidth / 2, y, 9, colors.purple, "normal", "center");
   }
 
-  y = metaBoxY + 55;
+  y = metaBoxY + 60;
 
-  // Security Score (if files scanned)
+  // Security Score
   if (fileData.length > 0) {
     y = addText("OVERALL SECURITY SCORE", pageWidth / 2, y, 12, colors.white, "bold", "center");
     y += 10;
@@ -413,7 +403,6 @@ async function generatePDFReport(fileData, urlData) {
     const score = chartData.avgScore;
     const scoreColor = score >= 80 ? colors.secondary : score >= 60 ? colors.warning : colors.danger;
 
-    // Score circle
     doc.setDrawColor(...scoreColor);
     doc.setLineWidth(2);
     doc.circle(pageWidth / 2, y, 15);
@@ -421,13 +410,11 @@ async function generatePDFReport(fileData, urlData) {
 
     y += 25;
 
-    // Stats
     const statText = `Safe: ${chartData.safe}  |  Warnings: ${chartData.warning}  |  Threats: ${chartData.critical}`;
     addText(statText, pageWidth / 2, y, 11, colors.white, "normal", "center");
     y += 10;
   }
 
-  // No data warning
   if (fileData.length === 0 && urlData.length === 0) {
     y = addText("⚠ NO SCAN DATA AVAILABLE", pageWidth / 2, y, 14, colors.warning, "bold", "center");
     y += 8;
@@ -443,7 +430,7 @@ async function generatePDFReport(fileData, urlData) {
   y += 18;
   addText("Generated by ZeroRisk Sentinel Advanced Security Scanner", pageWidth / 2, y, 8, colors.gray, "normal", "center");
 
-  //  EXECUTIVE SUMMARY 
+  // ==================== EXECUTIVE SUMMARY ====================
   
   doc.addPage();
   y = 20;
@@ -452,7 +439,7 @@ async function generatePDFReport(fileData, urlData) {
 
   // Summary box
   doc.setFillColor(...colors.panel);
-  doc.roundedRect(margin, y, pageWidth - (margin * 2), 55, 2, 2, "F");
+  doc.roundedRect(margin, y, pageWidth - (margin * 2), 65, 2, 2, "F");
 
   let boxY = y + 8;
   addText(`Total Items Analyzed: ${fileData.length + urlData.length}`, margin + 5, boxY, 11, colors.white);
@@ -460,6 +447,11 @@ async function generatePDFReport(fileData, urlData) {
   addText(`Files Scanned: ${fileData.length}`, margin + 5, boxY, 11, colors.white);
   boxY += 8;
   addText(`URLs Scanned: ${urlData.length}`, margin + 5, boxY, 11, colors.white);
+  
+  if (chartData.sandboxCount > 0) {
+    boxY += 8;
+    addText(`Files with Sandbox: ${chartData.sandboxCount}`, margin + 5, boxY, 11, colors.purple, "bold");
+  }
   
   if (urlStats.deepScan > 0) {
     boxY += 8;
@@ -477,7 +469,7 @@ async function generatePDFReport(fileData, urlData) {
     addText(`Risk Assessment: ${riskText}`, margin + 5, boxY, 11, riskColor, "bold");
   }
 
-  y += 65;
+  y += 75;
 
   // Threat Distribution
   if (fileData.length > 0 || urlData.length > 0) {
@@ -485,7 +477,7 @@ async function generatePDFReport(fileData, urlData) {
     y = addSectionHeader("Threat Distribution", y);
 
     doc.setFillColor(...colors.panel);
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 30, 2, 2, "F");
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), 35, 2, 2, "F");
 
     const totalSafe = chartData.safe + urlStats.safe;
     const totalWarning = chartData.warning + urlStats.warning;
@@ -495,11 +487,16 @@ async function generatePDFReport(fileData, urlData) {
     addText(`● Warnings: ${totalWarning}`, margin + 70, y + 10, 11, colors.warning);
     addText(`● Critical: ${totalCritical}`, margin + 130, y + 10, 11, colors.danger);
     
+    let scanY = y + 22;
+    if (chartData.sandboxCount > 0) {
+      addText(`● File Sandboxes: ${chartData.sandboxCount}`, margin + 10, scanY, 10, colors.purple);
+      scanY += 6;
+    }
     if (urlStats.deepScan > 0) {
-      addText(`● Deep Scans: ${urlStats.deepScan}`, margin + 10, y + 20, 10, colors.purple);
+      addText(`● URL Deep Scans: ${urlStats.deepScan}`, margin + 10, scanY, 10, colors.purple);
     }
 
-    y += 40;
+    y += 45;
   }
 
   // Risk Assessment Text
@@ -518,7 +515,7 @@ async function generatePDFReport(fileData, urlData) {
 
   y += lines.length * 5 + 20;
 
-  //  FILE ANALYSIS SECTION 
+  // ==================== FILE ANALYSIS SECTION ====================
 
   if (fileData.length > 0) {
     doc.addPage();
@@ -530,12 +527,13 @@ async function generatePDFReport(fileData, urlData) {
       checkPageBreak(boxHeight + 10);
 
       const threatColor = getThreatColor(file.threatLevel);
+      const hasSandbox = file.deep_scan || file.sandbox_data;
 
       // File header box
       doc.setFillColor(...colors.panel);
       doc.setDrawColor(...threatColor);
       doc.setLineWidth(0.5);
-      doc.roundedRect(margin, y, pageWidth - (margin * 2), 12, 2, 2, "FD");
+      doc.roundedRect(margin, y, pageWidth - (margin * 2), hasSandbox ? 16 : 12, 2, 2, "FD");
 
       // File name and threat level
       const displayName = (file.name || "Unknown").length > 45 
@@ -543,9 +541,15 @@ async function generatePDFReport(fileData, urlData) {
         : (file.name || "Unknown");
       
       addText(`${index + 1}. ${displayName}`, margin + 3, y + 4, 10, colors.white, "bold");
-      addText((file.threatLevel || "unknown").toUpperCase(), pageWidth - margin - 3, y + 4, 9, threatColor, "bold", "right");
+      
+      if (hasSandbox) {
+        addText((file.threatLevel || "unknown").toUpperCase(), pageWidth - margin - 50, y + 4, 9, threatColor, "bold", "right");
+        addText("[SANDBOX]", pageWidth - margin - 3, y + 4, 8, colors.purple, "bold", "right");
+      } else {
+        addText((file.threatLevel || "unknown").toUpperCase(), pageWidth - margin - 3, y + 4, 9, threatColor, "bold", "right");
+      }
 
-      y += 15;
+      y += hasSandbox ? 19 : 15;
 
       // File details
       doc.setFillColor(...colors.panel);
@@ -559,6 +563,13 @@ async function generatePDFReport(fileData, urlData) {
       addText(`Keylogger: ${file.keyloggerDetected ? "⚠ DETECTED" : "Not detected"}`, margin + 5, detailY, 9, file.keyloggerDetected ? colors.danger : colors.gray);
       detailY += 6;
       addText(`Extension Spoofing: ${file.extensionMismatch ? "⚠ YES" : "No"}`, margin + 5, detailY, 9, file.extensionMismatch ? colors.danger : colors.gray);
+
+      // Sandbox info
+      if (file.sandbox_data) {
+        detailY += 6;
+        const sd = file.sandbox_data;
+        addText(`Sandbox: ${sd.verdict || "N/A"} | Processes: ${sd.processes_spawned || 0} | Network: ${sd.network_connections || 0}`, margin + 5, detailY, 8, colors.purple);
+      }
 
       // Hashes
       if (file.hashes && file.hashes.sha256) {
@@ -599,8 +610,8 @@ async function generatePDFReport(fileData, urlData) {
           const sevColor = finding.severity === "critical" || finding.severity === "high" ? colors.danger : 
                           finding.severity === "medium" ? colors.warning : colors.secondary;
           
-          const shortDesc = (finding.description || finding).length > 60 
-            ? (finding.description || finding).substring(0, 57) + "..." 
+          const shortDesc = (finding.description || finding).length > 55 
+            ? (finding.description || finding).substring(0, 52) + "..." 
             : (finding.description || finding);
 
           addText(`[${(finding.severity || "info").toUpperCase()}]`, margin + 8, detailY, 8, sevColor, "bold");
@@ -612,8 +623,8 @@ async function generatePDFReport(fileData, urlData) {
       // Risk Explanation
       if (file.riskExposure && file.riskExposure !== "unknown") {
         detailY += 3;
-        const shortExp = file.riskExposure.length > 100 
-          ? file.riskExposure.substring(0, 97) + "..." 
+        const shortExp = file.riskExposure.length > 90 
+          ? file.riskExposure.substring(0, 87) + "..." 
           : file.riskExposure;
         addText(`Assessment: ${shortExp}`, margin + 5, detailY, 8, colors.gray);
       }
@@ -623,7 +634,6 @@ async function generatePDFReport(fileData, urlData) {
       y += 3;
     });
   } else {
-    // No files scanned
     doc.addPage();
     y = 20;
     y = addSectionHeader("File Security Analysis", y);
@@ -635,7 +645,7 @@ async function generatePDFReport(fileData, urlData) {
     addText("Use the File Scanner to analyze files for malware, spyware, and other threats.", margin + 10, y + 22, 10, colors.gray);
   }
 
-  //  URL ANALYSIS SECTION 
+  // ==================== URL ANALYSIS SECTION ====================
 
   if (urlData.length > 0) {
     doc.addPage();
@@ -643,7 +653,7 @@ async function generatePDFReport(fileData, urlData) {
     y = addSectionHeader("URL Security Analysis", y);
 
     urlData.forEach((url, index) => {
-      checkPageBreak(45);
+      checkPageBreak(50);
 
       const threatLevel = url.threat_level || url.threatLevel || "unknown";
       const threatColor = getThreatColor(threatLevel);
@@ -662,13 +672,13 @@ async function generatePDFReport(fileData, urlData) {
       addText(threatLevel.toUpperCase(), pageWidth - margin - 3, y + 4, 9, threatColor, "bold", "right");
       
       if (isDeepScan) {
-        addText("[DEEP SCAN]", pageWidth - margin - 40, y + 4, 8, colors.purple, "bold", "right");
+        addText("[DEEP SCAN]", pageWidth - margin - 45, y + 4, 8, colors.purple, "bold", "right");
       }
 
       y += isDeepScan ? 19 : 15;
 
       // URL details
-      const detailsHeight = isDeepScan ? 35 : 22;
+      const detailsHeight = isDeepScan ? 40 : 22;
       doc.setFillColor(...colors.panel);
       doc.roundedRect(margin, y - 3, pageWidth - (margin * 2), detailsHeight, 2, 2, "F");
 
@@ -692,10 +702,13 @@ async function generatePDFReport(fileData, urlData) {
         if (us.country) {
           addText(`Country: ${us.country}`, margin + 80, y + 23, 8, colors.gray);
         }
+        if (us.brands_detected && us.brands_detected.length > 0) {
+          addText(`Brands: ${us.brands_detected.slice(0, 2).join(", ")}`, margin + 5, y + 32, 8, colors.warning);
+        }
       }
 
       // External services
-      let serviceY = y + (isDeepScan ? 30 : 12);
+      let serviceY = y + (isDeepScan ? 36 : 12);
       if (url.services) {
         const gsb = url.services.google_safe_browsing;
         if (gsb && gsb.available) {
@@ -733,8 +746,8 @@ async function generatePDFReport(fileData, urlData) {
         y += 5;
 
         url.findings.slice(0, 2).forEach((f) => {
-          const shortDesc = (f.description || "").length > 60 
-            ? (f.description || "").substring(0, 57) + "..." 
+          const shortDesc = (f.description || "").length > 55 
+            ? (f.description || "").substring(0, 52) + "..." 
             : (f.description || "");
           addText(`• ${shortDesc}`, margin + 8, y, 8, colors.gray);
           y += 4;
@@ -746,7 +759,6 @@ async function generatePDFReport(fileData, urlData) {
       y += 3;
     });
   } else {
-    // No URLs scanned
     doc.addPage();
     y = 20;
     y = addSectionHeader("URL Security Analysis", y);
@@ -758,7 +770,7 @@ async function generatePDFReport(fileData, urlData) {
     addText("Use the URL Scanner to analyze web addresses for phishing and malware.", margin + 10, y + 22, 10, colors.gray);
   }
 
-  //  RECOMMENDATIONS 
+  // ==================== RECOMMENDATIONS ====================
 
   doc.addPage();
   y = 20;
@@ -782,42 +794,37 @@ async function generatePDFReport(fileData, urlData) {
     y += 25;
   });
 
-  //  FOOTER 
+  // ==================== FOOTER ====================
 
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     
-    // Footer background
     doc.setFillColor(26, 26, 26);
     doc.rect(0, pageHeight - 12, pageWidth, 12, "F");
     
-    // Footer line
     doc.setDrawColor(...colors.primary);
     doc.setLineWidth(0.3);
     doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
     
-    // Page info
     addText(`ZeroRisk Sentinel v${REPORT_VERSION} | Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 6, 8, colors.gray, "normal", "center");
   }
 
-  // Save
   doc.save(`zerorisk-report-${formatTimestamp()}.pdf`);
 }
 
-
-// HELPER FUNCTIONS
-
+// ==================== HELPER FUNCTIONS ====================
 
 function calculateFileBoxHeight(file) {
-  let height = 35; // Base height
+  let height = 35;
   
   if (file.hashes && file.hashes.sha256) height += 6;
+  if (file.sandbox_data) height += 6;
   if (file.spywareProfile) height += 25;
   if (file.findings && file.findings.length > 0) height += 20;
   if (file.riskExposure && file.riskExposure !== "unknown") height += 10;
   
-  return Math.min(height, 100);
+  return Math.min(height, 110);
 }
 
 function generateRiskAssessmentText(fileData, urlData) {
@@ -833,6 +840,10 @@ function generateRiskAssessmentText(fileData, urlData) {
   if (fileData.length > 0) {
     text += `File Analysis: ${fileData.length} file(s) scanned. `;
     text += `Security Score: ${chartData.avgScore}/100. `;
+    
+    if (chartData.sandboxCount > 0) {
+      text += `${chartData.sandboxCount} file(s) analyzed with sandbox execution. `;
+    }
     
     if (chartData.critical > 0) {
       text += `CRITICAL: ${chartData.critical} file(s) require immediate attention. `;
@@ -868,7 +879,6 @@ function generateRecommendations(fileData, urlData) {
   const chartData = calculateReportChartData();
   const urlStats = calculateURLStats();
   
-  // Check for critical threats
   const hasCriticalFiles = chartData.critical > 0;
   const hasCriticalURLs = urlStats.critical > 0;
   
@@ -879,10 +889,10 @@ function generateRecommendations(fileData, urlData) {
     });
   }
   
-  // File-specific recommendations
   if (fileData.length > 0) {
     const hasKeyloggers = fileData.some(f => f.keyloggerDetected);
     const hasSpoofing = fileData.some(f => f.extensionMismatch);
+    const hasSandbox = chartData.sandboxCount > 0;
     
     if (hasKeyloggers) {
       recs.push({
@@ -895,6 +905,13 @@ function generateRecommendations(fileData, urlData) {
       recs.push({
         title: "Extension Spoofing Detected",
         description: "Files with misleading extensions found. Always verify actual file types before opening. Enable 'Show file extensions' in your OS settings."
+      });
+    }
+    
+    if (hasSandbox) {
+      recs.push({
+        title: "Sandbox Analysis Complete",
+        description: `${chartData.sandboxCount} file(s) were analyzed using real-time sandbox execution. Review process activity and network connections for additional context.`
       });
     }
     
@@ -911,7 +928,6 @@ function generateRecommendations(fileData, urlData) {
     });
   }
   
-  // URL-specific recommendations
   if (urlData.length > 0) {
     if (urlStats.critical > 0 || urlStats.high > 0) {
       recs.push({
@@ -941,7 +957,6 @@ function generateRecommendations(fileData, urlData) {
     });
   }
   
-  // General recommendations
   recs.push({
     title: "Regular Security Scanning",
     description: "Schedule weekly scans of downloads and system directories. Maintain updated threat signatures."
@@ -976,12 +991,9 @@ function generateReportId() {
   return "ZRS-" + Math.random().toString(36).substring(2, 10).toUpperCase();
 }
 
-
-// NOTIFICATION SYSTEM
-
+// ==================== NOTIFICATION ====================
 
 function showNotification(message, type = "info") {
-  // Remove existing notifications
   const existing = document.querySelectorAll(".zerorisk-notification");
   existing.forEach(n => n.remove());
 
@@ -1002,48 +1014,24 @@ function showNotification(message, type = "info") {
       <div class="flex-1">
         <p class="text-sm font-medium">${message}</p>
       </div>
-      <button class="flex-shrink-0 hover:opacity-75" onclick="this.closest('.zerorisk-notification').remove()">
-        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-        </svg>
-      </button>
+      <div class="flex-shrink-0">
+        <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-white hover:text-gray-200">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+          </svg>
+        </button>
+      </div>
     </div>
   `;
 
   document.body.appendChild(notification);
 
-  // Animate in
-  requestAnimationFrame(() => {
-    notification.classList.remove("translate-x-full");
-  });
-
-  // Auto remove
   setTimeout(() => {
-    notification.classList.add("translate-x-full", "opacity-0");
+    notification.classList.remove("translate-x-full");
+  }, 100);
+
+  setTimeout(() => {
+    notification.classList.add("translate-x-full");
     setTimeout(() => notification.remove(), 300);
   }, 5000);
 }
-
-
-// KEYBOARD SHORTCUTS
-
-
-document.addEventListener("keydown", (e) => {
-  // Ctrl/Cmd + Shift + R to open report modal
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "R") {
-    e.preventDefault();
-    openReportModal();
-  }
-  
-  // Escape to close modal
-  if (e.key === "Escape") {
-    closeReportModal();
-  }
-});
-
-
-// INITIALIZATION
-
-
-console.log("[ZeroRisk] Report Generator v" + REPORT_VERSION + " loaded");
-console.log("[ZeroRisk] Press Ctrl+Shift+R to generate report");
