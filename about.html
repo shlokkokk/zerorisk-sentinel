@@ -240,7 +240,16 @@
             border: 1px solid rgba(168, 85, 247, 0.4);
             color: #c084fc;
         }
+
+        .info-modal-btn {
+            transition: all 0.2s ease;
+        }
+        .info-modal-btn:hover {
+            color: var(--accent-blue);
+            transform: scale(1.1);
+        }
     </style>
+<base target="_blank">
 <base target="_blank">
 </head>
 <body>
@@ -272,7 +281,7 @@
         <!-- Hero Section -->
         <section class="relative min-h-[55vh] flex items-center justify-center px-4">
             <div class="max-w-6xl mx-auto text-center">
-                <span class="badge badge-blue mb-6 inline-block reveal">ZeroRisk Sentinel v2.1</span>
+                <span class="badge badge-blue mb-6 inline-block reveal">ZeroRisk Sentinel v2.2</span>
                 <h1 class="font-orbitron text-5xl md:text-6xl font-bold mb-6 reveal">
                     <span class="text-white">Advanced</span>
                     <span class="gradient-text text-glow"> Threat Detection</span>
@@ -591,7 +600,7 @@
                             <h3 class="text-xl font-bold text-purple-400">Deep Scan (Browser Sandbox)</h3>
                         </div>
                         <p class="text-gray-300 mb-4">
-                            The Deep Scan feature submits URLs to urlscan.io for live browser sandbox analysis. This provides:
+                            The Deep Scan feature submits URLs to a browser sandbox for live analysis. This provides:
                         </p>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <ul class="feature-list text-gray-300 text-sm">
@@ -731,6 +740,78 @@
             </div>
         </section>
 
+        <!-- UI Features -->
+        <section class="py-16 px-4">
+            <div class="max-w-6xl mx-auto">
+                <h2 class="font-orbitron text-3xl font-bold text-center mb-4 reveal">
+                    User Interface <span class="gradient-text">Features</span>
+                </h2>
+                <p class="text-gray-400 text-center mb-12 reveal">Professional design with intuitive interactions</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="analysis-card rounded-xl p-6 reveal">
+                        <div class="flex items-center gap-4 mb-4">
+                            <div class="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-white">Info Modals</h3>
+                        </div>
+                        <p class="text-gray-400 text-sm mb-4">
+                            Professional modal system with SVG icons for explaining features like Deep Scan mode.
+                        </p>
+                        <ul class="feature-list text-gray-400 text-sm">
+                            <li>Click outside to close</li>
+                            <li>Escape key support</li>
+                            <li>Background scroll lock</li>
+                            <li>Smooth animations</li>
+                        </ul>
+                    </div>
+
+                    <div class="analysis-card rounded-xl p-6 reveal">
+                        <div class="flex items-center gap-4 mb-4">
+                            <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-white">Enhanced Buttons</h3>
+                        </div>
+                        <p class="text-gray-400 text-sm mb-4">
+                            Improved button interactions with larger hitboxes and visual feedback.
+                        </p>
+                        <ul class="feature-list text-gray-400 text-sm">
+                            <li>Larger clickable area</li>
+                            <li>Color change on click</li>
+                            <li>Scale animation feedback</li>
+                            <li>Professional styling</li>
+                        </ul>
+                    </div>
+
+                    <div class="analysis-card rounded-xl p-6 reveal">
+                        <div class="flex items-center gap-4 mb-4">
+                            <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-white">PDF Reports</h3>
+                        </div>
+                        <p class="text-gray-400 text-sm mb-4">
+                            Professional PDF report generation with clean layout and proper formatting.
+                        </p>
+                        <ul class="feature-list text-gray-400 text-sm">
+                            <li>Clean cover page design</li>
+                            <li>Executive summary</li>
+                            <li>Threat distribution charts</li>
+                            <li>Detailed file/URL breakdown</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Report Generation -->
         <section class="py-16 px-4">
             <div class="max-w-6xl mx-auto">
@@ -801,6 +882,7 @@
                                 <li>Extension spoofing detection</li>
                                 <li>Local heuristic analysis</li>
                                 <li>Session storage for results</li>
+                                <li>Info modal system</li>
                             </ul>
                         </div>
 
@@ -811,7 +893,7 @@
                                 <li>File hashing & entropy</li>
                                 <li>VirusTotal API integration</li>
                                 <li>URL threat intelligence</li>
-                                <li>URL sandbox (urlscan.io)</li>
+                                <li>URL sandbox (browser)</li>
                                 <li>File sandbox (Hybrid Analysis)</li>
                                 <li>AI explanation service</li>
                             </ul>
@@ -823,7 +905,7 @@
                                 <li>Google Safe Browsing</li>
                                 <li>VirusTotal (files & URLs)</li>
                                 <li>URLHaus malware DB</li>
-                                <li>urlscan.io (URL sandbox)</li>
+                                <li>Browser sandbox (URLs)</li>
                                 <li>Hybrid Analysis (file sandbox)</li>
                                 <li>Groq AI (Llama 3.3 70B)</li>
                                 <li>WHOIS domain lookup</li>
@@ -916,7 +998,7 @@
                     </div>
                     <div class="tech-card reveal">
                         <h3 class="text-lg font-bold mb-2 text-orange-400">Sandbox</h3>
-                        <p class="text-gray-400 text-sm">Hybrid Analysis (files), urlscan.io (URLs)</p>
+                        <p class="text-gray-400 text-sm">Hybrid Analysis (files), Browser Sandbox (URLs)</p>
                     </div>
                     <div class="tech-card reveal">
                         <h3 class="text-lg font-bold mb-2 text-yellow-400">Threat Intel</h3>
@@ -998,7 +1080,7 @@
     <script src="main.js"></script>
 
     <div id="swipeHint" class="fixed bottom-4 left-1/2 -translate-x-1/2 text-xs text-gray-400 opacity-70 md:hidden select-none pointer-events-none">
-        Swipe to change pages
+        ← Swipe to change pages →
     </div>
 </body>
 </html>

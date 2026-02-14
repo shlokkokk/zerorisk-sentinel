@@ -1,7 +1,7 @@
 const REPORT_VERSION = "2.2.0";
 let selectedFormat = null;
 
-// ==================== CHART DATA CALCULATION ====================
+//  CHART DATA CALCULATION 
 
 function calculateReportChartData() {
   const fileData = JSON.parse(sessionStorage.getItem("analysisResults") || "[]");
@@ -127,7 +127,7 @@ function selectFormat(format) {
   }
 }
 
-// ==================== MAIN REPORT GENERATION ====================
+//  MAIN REPORT GENERATION 
 
 async function generateSelectedReport() {
   if (!selectedFormat) return;
@@ -169,7 +169,7 @@ async function generateSelectedReport() {
   }
 }
 
-// ==================== JSON REPORT ====================
+//  JSON REPORT 
 
 async function generateJSONReport(fileData, urlData) {
   const chartData = calculateReportChartData();
@@ -266,7 +266,7 @@ async function generateJSONReport(fileData, urlData) {
   URL.revokeObjectURL(url);
 }
 
-// ==================== PDF REPORT ====================
+//  PDF REPORT 
 
 async function generatePDFReport(fileData, urlData) {
   const { jsPDF } = window.jspdf;
@@ -317,12 +317,13 @@ async function generatePDFReport(fileData, urlData) {
   };
 
   const checkPageBreak = (neededSpace = 30) => {
-    if (y + neededSpace > pageHeight - margin) {
+    if (y + neededSpace > pageHeight - margin - 15) {
       doc.addPage();
       y = 20;
+      // Add header to new page
       doc.setFillColor(...colors.dark);
-      doc.rect(0, 0, pageWidth, 10, "F");
-      addText("ZeroRisk Sentinel - Security Report", margin, 7, 8, colors.primary, "bold");
+      doc.rect(0, 0, pageWidth, 12, "F");
+      addText("ZeroRisk Sentinel - Security Report", margin, 8, 8, colors.primary, "bold");
       return true;
     }
     return false;
@@ -339,183 +340,191 @@ async function generatePDFReport(fileData, urlData) {
     }
   };
 
-  // ==================== COVER PAGE ====================
+  //  COVER PAGE 
   
+  // Full page dark background
   doc.setFillColor(...colors.dark);
   doc.rect(0, 0, pageWidth, pageHeight, "F");
 
-  // Gradient effect
-  for (let i = 0; i < 60; i++) {
-    const alpha = 0.01 + (i * 0.0008);
+  // Subtle gradient at top
+  for (let i = 0; i < 40; i++) {
+    const alpha = 0.008 + (i * 0.0005);
     doc.setFillColor(0, 212, 255);
     doc.setGState(new doc.GState({ opacity: alpha }));
-    doc.rect(0, i * 5, pageWidth, 5, "F");
+    doc.rect(0, i * 3, pageWidth, 3, "F");
   }
   doc.setGState(new doc.GState({ opacity: 1 }));
 
   // Logo area
-  y = 35;
+  y = 40;
   doc.setTextColor(...colors.primary);
-  doc.setFontSize(48);
+  doc.setFontSize(42);
   doc.setFont("helvetica", "bold");
   doc.text("◆", pageWidth / 2, y, { align: "center" });
-  y += 20;
+  y += 18;
 
   // Title
-  y = addText("ZeroRisk Sentinel", pageWidth / 2, y, 28, colors.white, "bold", "center");
-  y = addText("Security Analysis Report", pageWidth / 2, y + 5, 16, colors.primary, "normal", "center");
+  y = addText("ZeroRisk Sentinel", pageWidth / 2, y, 26, colors.white, "bold", "center");
+  y = addText("Security Analysis Report", pageWidth / 2, y + 4, 14, colors.primary, "normal", "center");
 
-  y += 25;
+  y += 20;
 
-  // Metadata box
+  // Metadata box - properly sized to fit content
   const metaBoxY = y;
+  const metaBoxHeight = 55;
+  
   doc.setFillColor(...colors.panel);
   doc.setDrawColor(...colors.primary);
   doc.setLineWidth(0.3);
-  doc.roundedRect(margin + 20, metaBoxY, pageWidth - (margin * 2) - 40, 50, 3, 3, "FD");
+  doc.roundedRect(margin + 15, metaBoxY, pageWidth - (margin * 2) - 30, metaBoxHeight, 3, 3, "FD");
 
-  y += 10;
-  addText(`Report Generated: ${new Date().toLocaleString()}`, pageWidth / 2, y, 10, colors.gray, "normal", "center");
-  y += 7;
-  addText(`Version: ${REPORT_VERSION}`, pageWidth / 2, y, 10, colors.gray, "normal", "center");
-  y += 7;
-  addText(`Report ID: ${generateReportId()}`, pageWidth / 2, y, 10, colors.gray, "normal", "center");
-  y += 7;
+  // Center text in metadata box
+  const centerY = metaBoxY + 12;
+  addText(`Report Generated: ${new Date().toLocaleString()}`, pageWidth / 2, centerY, 9, colors.gray, "normal", "center");
+  addText(`Version: ${REPORT_VERSION}`, pageWidth / 2, centerY + 7, 9, colors.gray, "normal", "center");
+  addText(`Report ID: ${generateReportId()}`, pageWidth / 2, centerY + 14, 9, colors.gray, "normal", "center");
   
   const totalItems = fileData.length + urlData.length;
-  addText(`Items Scanned: ${totalItems} (Files: ${fileData.length}, URLs: ${urlData.length})`, pageWidth / 2, y, 10, colors.white, "bold", "center");
+  addText(`Items Scanned: ${totalItems} (Files: ${fileData.length}, URLs: ${urlData.length})`, pageWidth / 2, centerY + 21, 9, colors.white, "bold", "center");
   
   if (chartData.sandboxCount > 0 || urlStats.deepScan > 0) {
-    y += 7;
     const sandboxText = [];
     if (chartData.sandboxCount > 0) sandboxText.push(`File Sandboxes: ${chartData.sandboxCount}`);
     if (urlStats.deepScan > 0) sandboxText.push(`URL Deep Scans: ${urlStats.deepScan}`);
-    addText(sandboxText.join(" | "), pageWidth / 2, y, 9, colors.purple, "normal", "center");
+    addText(sandboxText.join(" | "), pageWidth / 2, centerY + 28, 8, colors.purple, "normal", "center");
   }
 
-  y = metaBoxY + 60;
+  y = metaBoxY + metaBoxHeight + 20;
 
   // Security Score
   if (fileData.length > 0) {
-    y = addText("OVERALL SECURITY SCORE", pageWidth / 2, y, 12, colors.white, "bold", "center");
-    y += 10;
+    y = addText("OVERALL SECURITY SCORE", pageWidth / 2, y, 11, colors.white, "bold", "center");
+    y += 12;
 
     const score = chartData.avgScore;
     const scoreColor = score >= 80 ? colors.secondary : score >= 60 ? colors.warning : colors.danger;
 
+    // Draw score circle
     doc.setDrawColor(...scoreColor);
-    doc.setLineWidth(2);
-    doc.circle(pageWidth / 2, y, 15);
-    addText(`${Math.round(score)}`, pageWidth / 2, y + 5, 20, scoreColor, "bold", "center");
+    doc.setLineWidth(1.5);
+    doc.circle(pageWidth / 2, y, 14);
+    doc.setFillColor(...scoreColor);
+    doc.setGState(new doc.GState({ opacity: 0.1 }));
+    doc.circle(pageWidth / 2, y, 14, "F");
+    doc.setGState(new doc.GState({ opacity: 1 }));
+    
+    addText(`${Math.round(score)}`, pageWidth / 2, y + 4, 18, scoreColor, "bold", "center");
 
-    y += 25;
+    y += 22;
 
     const statText = `Safe: ${chartData.safe}  |  Warnings: ${chartData.warning}  |  Threats: ${chartData.critical}`;
-    addText(statText, pageWidth / 2, y, 11, colors.white, "normal", "center");
+    addText(statText, pageWidth / 2, y, 10, colors.white, "normal", "center");
     y += 10;
   }
 
   if (fileData.length === 0 && urlData.length === 0) {
-    y = addText("⚠ NO SCAN DATA AVAILABLE", pageWidth / 2, y, 14, colors.warning, "bold", "center");
-    y += 8;
-    addText("Scan files or URLs to generate a complete report", pageWidth / 2, y, 10, colors.gray, "normal", "center");
+    y = addText("NO SCAN DATA AVAILABLE", pageWidth / 2, y, 12, colors.warning, "bold", "center");
+    y += 6;
+    addText("Scan files or URLs to generate a complete report", pageWidth / 2, y, 9, colors.gray, "normal", "center");
   }
 
-  // Classification banner
-  y = pageHeight - 35;
+  // Classification banner at bottom
+  const bannerY = pageHeight - 30;
   doc.setFillColor(...colors.primary);
-  doc.rect(0, y, pageWidth, 12, "F");
-  addText("CONFIDENTIAL SECURITY REPORT", pageWidth / 2, y + 4, 10, colors.dark, "bold", "center");
+  doc.rect(0, bannerY, pageWidth, 10, "F");
+  addText("CONFIDENTIAL SECURITY REPORT", pageWidth / 2, bannerY + 3.5, 9, colors.dark, "bold", "center");
 
-  y += 18;
-  addText("Generated by ZeroRisk Sentinel Advanced Security Scanner", pageWidth / 2, y, 8, colors.gray, "normal", "center");
+  addText("Generated by ZeroRisk Sentinel Advanced Security Scanner", pageWidth / 2, bannerY + 16, 7, colors.gray, "normal", "center");
 
-  // ==================== EXECUTIVE SUMMARY ====================
+  //  EXECUTIVE SUMMARY 
   
   doc.addPage();
   y = 20;
 
   y = addSectionHeader("Executive Summary", y);
 
-  // Summary box
+  // Summary box with proper spacing
+  const summaryHeight = 55;
   doc.setFillColor(...colors.panel);
-  doc.roundedRect(margin, y, pageWidth - (margin * 2), 65, 2, 2, "F");
+  doc.roundedRect(margin, y, pageWidth - (margin * 2), summaryHeight, 2, 2, "F");
 
   let boxY = y + 8;
-  addText(`Total Items Analyzed: ${fileData.length + urlData.length}`, margin + 5, boxY, 11, colors.white);
-  boxY += 8;
-  addText(`Files Scanned: ${fileData.length}`, margin + 5, boxY, 11, colors.white);
-  boxY += 8;
-  addText(`URLs Scanned: ${urlData.length}`, margin + 5, boxY, 11, colors.white);
+  addText(`Total Items Analyzed: ${fileData.length + urlData.length}`, margin + 5, boxY, 10, colors.white);
+  boxY += 7;
+  addText(`Files Scanned: ${fileData.length}`, margin + 5, boxY, 10, colors.white);
+  boxY += 7;
+  addText(`URLs Scanned: ${urlData.length}`, margin + 5, boxY, 10, colors.white);
   
   if (chartData.sandboxCount > 0) {
-    boxY += 8;
-    addText(`Files with Sandbox: ${chartData.sandboxCount}`, margin + 5, boxY, 11, colors.purple, "bold");
+    boxY += 7;
+    addText(`Files with Sandbox: ${chartData.sandboxCount}`, margin + 5, boxY, 10, colors.purple, "bold");
   }
   
   if (urlStats.deepScan > 0) {
-    boxY += 8;
-    addText(`URLs with Deep Scan: ${urlStats.deepScan}`, margin + 5, boxY, 11, colors.purple, "bold");
+    boxY += 7;
+    addText(`URLs with Deep Scan: ${urlStats.deepScan}`, margin + 5, boxY, 10, colors.purple, "bold");
   }
   
-  boxY += 8;
+  boxY += 7;
 
   if (fileData.length > 0) {
-    addText(`Overall Security Score: ${chartData.avgScore}/100`, margin + 5, boxY, 11, colors.white, "bold");
-    boxY += 8;
+    addText(`Overall Security Score: ${chartData.avgScore}/100`, margin + 5, boxY, 10, colors.white, "bold");
+    boxY += 7;
 
     const riskText = chartData.avgScore >= 80 ? "LOW RISK" : chartData.avgScore >= 60 ? "MODERATE RISK" : "HIGH RISK";
     const riskColor = chartData.avgScore >= 80 ? colors.secondary : chartData.avgScore >= 60 ? colors.warning : colors.danger;
-    addText(`Risk Assessment: ${riskText}`, margin + 5, boxY, 11, riskColor, "bold");
+    addText(`Risk Assessment: ${riskText}`, margin + 5, boxY, 10, riskColor, "bold");
   }
 
-  y += 75;
+  y += summaryHeight + 10;
 
   // Threat Distribution
   if (fileData.length > 0 || urlData.length > 0) {
-    checkPageBreak(40);
+    checkPageBreak(50);
     y = addSectionHeader("Threat Distribution", y);
 
+    const distHeight = 30;
     doc.setFillColor(...colors.panel);
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 35, 2, 2, "F");
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), distHeight, 2, 2, "F");
 
     const totalSafe = chartData.safe + urlStats.safe;
     const totalWarning = chartData.warning + urlStats.warning;
     const totalCritical = chartData.critical + urlStats.critical;
 
-    addText(`● Safe: ${totalSafe}`, margin + 10, y + 10, 11, colors.secondary);
-    addText(`● Warnings: ${totalWarning}`, margin + 70, y + 10, 11, colors.warning);
-    addText(`● Critical: ${totalCritical}`, margin + 130, y + 10, 11, colors.danger);
+    addText(`Safe: ${totalSafe}`, margin + 10, y + 10, 10, colors.secondary);
+    addText(`Warnings: ${totalWarning}`, margin + 55, y + 10, 10, colors.warning);
+    addText(`Critical: ${totalCritical}`, margin + 105, y + 10, 10, colors.danger);
     
-    let scanY = y + 22;
+    let scanY = y + 20;
     if (chartData.sandboxCount > 0) {
-      addText(`● File Sandboxes: ${chartData.sandboxCount}`, margin + 10, scanY, 10, colors.purple);
-      scanY += 6;
+      addText(`File Sandboxes: ${chartData.sandboxCount}`, margin + 10, scanY, 9, colors.purple);
+      scanY += 5;
     }
     if (urlStats.deepScan > 0) {
-      addText(`● URL Deep Scans: ${urlStats.deepScan}`, margin + 10, scanY, 10, colors.purple);
+      addText(`URL Deep Scans: ${urlStats.deepScan}`, margin + 10, scanY, 9, colors.purple);
     }
 
-    y += 45;
+    y += distHeight + 10;
   }
 
   // Risk Assessment Text
-  checkPageBreak(40);
+  checkPageBreak(50);
   y = addSectionHeader("Assessment Details", y);
 
   const assessment = generateRiskAssessmentText(fileData, urlData);
   const lines = doc.splitTextToSize(assessment, pageWidth - (margin * 2) - 10);
+  const textBoxHeight = Math.min(lines.length * 4.5 + 12, 60);
 
   doc.setFillColor(...colors.panel);
-  doc.roundedRect(margin, y, pageWidth - (margin * 2), lines.length * 5 + 10, 2, 2, "F");
+  doc.roundedRect(margin, y, pageWidth - (margin * 2), textBoxHeight, 2, 2, "F");
 
   doc.setTextColor(200, 200, 200);
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.text(lines, margin + 5, y + 8);
 
-  y += lines.length * 5 + 20;
+  y += textBoxHeight + 15;
 
-  // ==================== FILE ANALYSIS SECTION ====================
+  //  FILE ANALYSIS SECTION 
 
   if (fileData.length > 0) {
     doc.addPage();
@@ -524,114 +533,116 @@ async function generatePDFReport(fileData, urlData) {
 
     fileData.forEach((file, index) => {
       const boxHeight = calculateFileBoxHeight(file);
-      checkPageBreak(boxHeight + 10);
+      checkPageBreak(boxHeight + 15);
 
       const threatColor = getThreatColor(file.threatLevel);
       const hasSandbox = file.deep_scan || file.sandbox_data;
 
       // File header box
+      const headerHeight = hasSandbox ? 14 : 10;
       doc.setFillColor(...colors.panel);
       doc.setDrawColor(...threatColor);
       doc.setLineWidth(0.5);
-      doc.roundedRect(margin, y, pageWidth - (margin * 2), hasSandbox ? 16 : 12, 2, 2, "FD");
+      doc.roundedRect(margin, y, pageWidth - (margin * 2), headerHeight, 2, 2, "FD");
 
       // File name and threat level
-      const displayName = (file.name || "Unknown").length > 45 
-        ? (file.name || "Unknown").substring(0, 42) + "..." 
+      const displayName = (file.name || "Unknown").length > 50 
+        ? (file.name || "Unknown").substring(0, 47) + "..." 
         : (file.name || "Unknown");
       
-      addText(`${index + 1}. ${displayName}`, margin + 3, y + 4, 10, colors.white, "bold");
+      addText(`${index + 1}. ${displayName}`, margin + 3, y + 3.5, 9, colors.white, "bold");
       
       if (hasSandbox) {
-        addText((file.threatLevel || "unknown").toUpperCase(), pageWidth - margin - 50, y + 4, 9, threatColor, "bold", "right");
-        addText("[SANDBOX]", pageWidth - margin - 3, y + 4, 8, colors.purple, "bold", "right");
+        addText((file.threatLevel || "unknown").toUpperCase(), pageWidth - margin - 45, y + 3.5, 8, threatColor, "bold", "right");
+        addText("[SANDBOX]", pageWidth - margin - 3, y + 3.5, 7, colors.purple, "bold", "right");
       } else {
-        addText((file.threatLevel || "unknown").toUpperCase(), pageWidth - margin - 3, y + 4, 9, threatColor, "bold", "right");
+        addText((file.threatLevel || "unknown").toUpperCase(), pageWidth - margin - 3, y + 3.5, 8, threatColor, "bold", "right");
       }
 
-      y += hasSandbox ? 19 : 15;
+      y += headerHeight + 3;
 
       // File details
+      const detailsHeight = boxHeight - headerHeight - 5;
       doc.setFillColor(...colors.panel);
-      doc.roundedRect(margin, y - 3, pageWidth - (margin * 2), boxHeight - 15, 2, 2, "F");
+      doc.roundedRect(margin, y, pageWidth - (margin * 2), detailsHeight, 2, 2, "F");
 
       let detailY = y + 5;
-      addText(`Threat Score: ${file.threatScore || 0}/100`, margin + 5, detailY, 9, colors.white);
-      detailY += 6;
-      addText(`Size: ${formatBytes(file.size)}`, margin + 5, detailY, 9, colors.gray);
-      detailY += 6;
-      addText(`Keylogger: ${file.keyloggerDetected ? "⚠ DETECTED" : "Not detected"}`, margin + 5, detailY, 9, file.keyloggerDetected ? colors.danger : colors.gray);
-      detailY += 6;
-      addText(`Extension Spoofing: ${file.extensionMismatch ? "⚠ YES" : "No"}`, margin + 5, detailY, 9, file.extensionMismatch ? colors.danger : colors.gray);
+      addText(`Threat Score: ${file.threatScore || 0}/100`, margin + 5, detailY, 8, colors.white);
+      detailY += 5;
+      addText(`Size: ${formatBytes(file.size)}`, margin + 5, detailY, 8, colors.gray);
+      detailY += 5;
+      addText(`Keylogger: ${file.keyloggerDetected ? "DETECTED" : "Not detected"}`, margin + 5, detailY, 8, file.keyloggerDetected ? colors.danger : colors.gray);
+      detailY += 5;
+      addText(`Extension Spoofing: ${file.extensionMismatch ? "YES" : "No"}`, margin + 5, detailY, 8, file.extensionMismatch ? colors.danger : colors.gray);
 
       // Sandbox info
       if (file.sandbox_data) {
-        detailY += 6;
+        detailY += 5;
         const sd = file.sandbox_data;
-        addText(`Sandbox: ${sd.verdict || "N/A"} | Processes: ${sd.processes_spawned || 0} | Network: ${sd.network_connections || 0}`, margin + 5, detailY, 8, colors.purple);
+        addText(`Sandbox: ${sd.verdict || "N/A"} | Processes: ${sd.processes_spawned || 0} | Network: ${sd.network_connections || 0}`, margin + 5, detailY, 7, colors.purple);
       }
 
       // Hashes
       if (file.hashes && file.hashes.sha256) {
-        detailY += 6;
+        detailY += 5;
         doc.setTextColor(100, 100, 100);
-        doc.setFontSize(7);
-        doc.text(`SHA256: ${file.hashes.sha256.substring(0, 40)}...`, margin + 5, detailY);
+        doc.setFontSize(6);
+        doc.text(`SHA256: ${file.hashes.sha256.substring(0, 35)}...`, margin + 5, detailY);
       }
 
-      detailY += 8;
+      detailY += 6;
 
       // Spyware Profile
       if (file.spywareProfile) {
-        addText("Behavior Profile:", margin + 5, detailY, 9, colors.white, "bold");
-        detailY += 5;
+        addText("Behavior Profile:", margin + 5, detailY, 8, colors.white, "bold");
+        detailY += 4;
 
         const profile = file.spywareProfile;
         const behaviors = [
-          `Surveillance: ${profile.surveillance ? "✓" : "✗"}`,
-          `Data Exfiltration: ${profile.dataExfiltration ? "✓" : "✗"}`,
-          `Persistence: ${profile.persistence ? "✓" : "✗"}`,
-          `Stealth: ${profile.stealth ? "✓" : "✗"}`
+          `Surveillance: ${profile.surveillance ? "Yes" : "No"}`,
+          `Data Exfiltration: ${profile.dataExfiltration ? "Yes" : "No"}`,
+          `Persistence: ${profile.persistence ? "Yes" : "No"}`,
+          `Stealth: ${profile.stealth ? "Yes" : "No"}`
         ];
 
         behaviors.forEach((b) => {
-          addText(`  ${b}`, margin + 8, detailY, 8, colors.gray);
-          detailY += 4;
+          addText(`  ${b}`, margin + 8, detailY, 7, colors.gray);
+          detailY += 3.5;
         });
       }
 
       // Findings
       if (file.findings && file.findings.length > 0) {
-        detailY += 3;
-        addText("Findings:", margin + 5, detailY, 9, colors.white, "bold");
-        detailY += 5;
+        detailY += 2;
+        addText("Findings:", margin + 5, detailY, 8, colors.white, "bold");
+        detailY += 4;
 
         file.findings.slice(0, 3).forEach((finding) => {
           const sevColor = finding.severity === "critical" || finding.severity === "high" ? colors.danger : 
                           finding.severity === "medium" ? colors.warning : colors.secondary;
           
-          const shortDesc = (finding.description || finding).length > 55 
-            ? (finding.description || finding).substring(0, 52) + "..." 
+          const shortDesc = (finding.description || finding).length > 50 
+            ? (finding.description || finding).substring(0, 47) + "..." 
             : (finding.description || finding);
 
-          addText(`[${(finding.severity || "info").toUpperCase()}]`, margin + 8, detailY, 8, sevColor, "bold");
-          addText(shortDesc, margin + 30, detailY, 8, colors.gray);
-          detailY += 4;
+          addText(`[${(finding.severity || "info").toUpperCase()}]`, margin + 8, detailY, 7, sevColor, "bold");
+          addText(shortDesc, margin + 28, detailY, 7, colors.gray);
+          detailY += 3.5;
         });
       }
 
       // Risk Explanation
       if (file.riskExposure && file.riskExposure !== "unknown") {
-        detailY += 3;
-        const shortExp = file.riskExposure.length > 90 
-          ? file.riskExposure.substring(0, 87) + "..." 
+        detailY += 2;
+        const shortExp = file.riskExposure.length > 80 
+          ? file.riskExposure.substring(0, 77) + "..." 
           : file.riskExposure;
-        addText(`Assessment: ${shortExp}`, margin + 5, detailY, 8, colors.gray);
+        addText(`Assessment: ${shortExp}`, margin + 5, detailY, 7, colors.gray);
       }
 
-      y += boxHeight;
+      y += detailsHeight + 8;
       y = drawLine(y, colors.gray);
-      y += 3;
+      y += 5;
     });
   } else {
     doc.addPage();
@@ -639,13 +650,13 @@ async function generatePDFReport(fileData, urlData) {
     y = addSectionHeader("File Security Analysis", y);
     
     doc.setFillColor(...colors.panel);
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 30, 2, 2, "F");
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), 25, 2, 2, "F");
     
-    addText("No files were scanned during this session.", margin + 10, y + 12, 12, colors.gray, "bold");
-    addText("Use the File Scanner to analyze files for malware, spyware, and other threats.", margin + 10, y + 22, 10, colors.gray);
+    addText("No files were scanned during this session.", margin + 10, y + 10, 10, colors.gray, "bold");
+    addText("Use the File Scanner to analyze files for malware, spyware, and other threats.", margin + 10, y + 17, 8, colors.gray);
   }
 
-  // ==================== URL ANALYSIS SECTION ====================
+  //  URL ANALYSIS SECTION 
 
   if (urlData.length > 0) {
     doc.addPage();
@@ -653,110 +664,111 @@ async function generatePDFReport(fileData, urlData) {
     y = addSectionHeader("URL Security Analysis", y);
 
     urlData.forEach((url, index) => {
-      checkPageBreak(50);
+      checkPageBreak(45);
 
       const threatLevel = url.threat_level || url.threatLevel || "unknown";
       const threatColor = getThreatColor(threatLevel);
       const isDeepScan = url.deep_scan || url.deepScan;
 
       // URL header box
+      const headerHeight = isDeepScan ? 14 : 10;
       doc.setFillColor(...colors.panel);
       doc.setDrawColor(...threatColor);
-      doc.roundedRect(margin, y, pageWidth - (margin * 2), isDeepScan ? 16 : 12, 2, 2, "FD");
+      doc.roundedRect(margin, y, pageWidth - (margin * 2), headerHeight, 2, 2, "FD");
 
-      const displayUrl = (url.url || "").length > 50 
-        ? (url.url || "").substring(0, 47) + "..." 
+      const displayUrl = (url.url || "").length > 55 
+        ? (url.url || "").substring(0, 52) + "..." 
         : (url.url || "");
       
-      addText(`${index + 1}. ${displayUrl}`, margin + 3, y + 4, 9, colors.white, "bold");
-      addText(threatLevel.toUpperCase(), pageWidth - margin - 3, y + 4, 9, threatColor, "bold", "right");
+      addText(`${index + 1}. ${displayUrl}`, margin + 3, y + 3.5, 8, colors.white, "bold");
+      addText(threatLevel.toUpperCase(), pageWidth - margin - 3, y + 3.5, 8, threatColor, "bold", "right");
       
       if (isDeepScan) {
-        addText("[DEEP SCAN]", pageWidth - margin - 45, y + 4, 8, colors.purple, "bold", "right");
+        addText("[DEEP SCAN]", pageWidth - margin - 40, y + 3.5, 7, colors.purple, "bold", "right");
       }
 
-      y += isDeepScan ? 19 : 15;
+      y += headerHeight + 3;
 
       // URL details
-      const detailsHeight = isDeepScan ? 40 : 22;
+      const detailsHeight = isDeepScan ? 35 : 20;
       doc.setFillColor(...colors.panel);
-      doc.roundedRect(margin, y - 3, pageWidth - (margin * 2), detailsHeight, 2, 2, "F");
+      doc.roundedRect(margin, y, pageWidth - (margin * 2), detailsHeight, 2, 2, "F");
 
-      addText(`Domain: ${url.domain || "N/A"}`, margin + 5, y + 5, 9, colors.gray);
-      addText(`Score: ${url.threat_score || url.threatScore || 0}/100`, margin + 80, y + 5, 9, colors.white);
+      addText(`Domain: ${url.domain || "N/A"}`, margin + 5, y + 4, 8, colors.gray);
+      addText(`Score: ${url.threat_score || url.threatScore || 0}/100`, margin + 75, y + 4, 8, colors.white);
       
-      const scanType = url.backend_based ? "Backend Intelligence" : "Local Heuristic";
-      addText(`Type: ${scanType}`, margin + 130, y + 5, 8, colors.gray);
+      const scanType = url.backend_based ? "Backend" : "Local";
+      addText(`Type: ${scanType}`, margin + 120, y + 4, 7, colors.gray);
 
       // Deep Scan info
       if (isDeepScan && url.urlscan_data) {
         const us = url.urlscan_data;
         const ns = us.network_stats || {};
-        addText(`Network Requests: ${ns.total_requests || 0}`, margin + 5, y + 14, 8, colors.gray);
-        addText(`Suspicious Domains: ${ns.suspicious_domains || 0}`, margin + 80, y + 14, 8, ns.suspicious_domains > 0 ? colors.danger : colors.gray);
-        addText(`Server: ${us.server || "N/A"}`, margin + 130, y + 14, 8, colors.gray);
+        addText(`Network Requests: ${ns.total_requests || 0}`, margin + 5, y + 11, 7, colors.gray);
+        addText(`Suspicious Domains: ${ns.suspicious_domains || 0}`, margin + 75, y + 11, 7, ns.suspicious_domains > 0 ? colors.danger : colors.gray);
+        addText(`Server: ${us.server || "N/A"}`, margin + 120, y + 11, 7, colors.gray);
         
         if (us.ip) {
-          addText(`IP: ${us.ip}`, margin + 5, y + 23, 8, colors.gray);
+          addText(`IP: ${us.ip}`, margin + 5, y + 18, 7, colors.gray);
         }
         if (us.country) {
-          addText(`Country: ${us.country}`, margin + 80, y + 23, 8, colors.gray);
+          addText(`Country: ${us.country}`, margin + 75, y + 18, 7, colors.gray);
         }
         if (us.brands_detected && us.brands_detected.length > 0) {
-          addText(`Brands: ${us.brands_detected.slice(0, 2).join(", ")}`, margin + 5, y + 32, 8, colors.warning);
+          addText(`Brands: ${us.brands_detected.slice(0, 2).join(", ")}`, margin + 5, y + 25, 7, colors.warning);
         }
       }
 
       // External services
-      let serviceY = y + (isDeepScan ? 36 : 12);
+      let serviceY = y + (isDeepScan ? 32 : 12);
       if (url.services) {
         const gsb = url.services.google_safe_browsing;
         if (gsb && gsb.available) {
           const status = gsb.threat_found ? `THREAT: ${gsb.threat_type}` : "Safe";
           const statusColor = gsb.threat_found ? colors.danger : colors.secondary;
-          addText(`Google Safe Browsing:`, margin + 5, serviceY, 8, colors.gray);
-          addText(status, margin + 55, serviceY, 8, statusColor, "bold");
+          addText(`Google Safe Browsing:`, margin + 5, serviceY, 7, colors.gray);
+          addText(status, margin + 50, serviceY, 7, statusColor, "bold");
         }
 
         const uh = url.services.urlhaus;
         if (uh && uh.available) {
-          serviceY += 5;
+          serviceY += 4;
           const status = uh.listed ? "LISTED" : "Not Listed";
           const statusColor = uh.listed ? colors.danger : colors.secondary;
-          addText(`URLHaus:`, margin + 5, serviceY, 8, colors.gray);
-          addText(status, margin + 55, serviceY, 8, statusColor, "bold");
+          addText(`URLHaus:`, margin + 5, serviceY, 7, colors.gray);
+          addText(status, margin + 50, serviceY, 7, statusColor, "bold");
         }
         
         const vt = url.services.virustotal_url;
         if (vt && vt.available) {
-          serviceY += 5;
+          serviceY += 4;
           const status = `${vt.malicious || 0}/${vt.total || 70} flagged`;
           const statusColor = (vt.malicious || 0) > 0 ? colors.danger : colors.secondary;
-          addText(`VirusTotal:`, margin + 5, serviceY, 8, colors.gray);
-          addText(status, margin + 55, serviceY, 8, statusColor, "bold");
+          addText(`VirusTotal:`, margin + 5, serviceY, 7, colors.gray);
+          addText(status, margin + 50, serviceY, 7, statusColor, "bold");
         }
       }
 
-      y += detailsHeight + 10;
+      y += detailsHeight + 8;
 
       // Findings
       if (url.findings && url.findings.length > 0) {
         checkPageBreak(20);
-        addText("Indicators:", margin + 5, y, 9, colors.white, "bold");
-        y += 5;
+        addText("Indicators:", margin + 5, y, 8, colors.white, "bold");
+        y += 4;
 
         url.findings.slice(0, 2).forEach((f) => {
-          const shortDesc = (f.description || "").length > 55 
-            ? (f.description || "").substring(0, 52) + "..." 
+          const shortDesc = (f.description || "").length > 50 
+            ? (f.description || "").substring(0, 47) + "..." 
             : (f.description || "");
-          addText(`• ${shortDesc}`, margin + 8, y, 8, colors.gray);
-          y += 4;
+          addText(`• ${shortDesc}`, margin + 8, y, 7, colors.gray);
+          y += 3.5;
         });
       }
 
       y += 5;
       y = drawLine(y, colors.gray);
-      y += 3;
+      y += 5;
     });
   } else {
     doc.addPage();
@@ -764,13 +776,13 @@ async function generatePDFReport(fileData, urlData) {
     y = addSectionHeader("URL Security Analysis", y);
     
     doc.setFillColor(...colors.panel);
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 30, 2, 2, "F");
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), 25, 2, 2, "F");
     
-    addText("No URLs were scanned during this session.", margin + 10, y + 12, 12, colors.gray, "bold");
-    addText("Use the URL Scanner to analyze web addresses for phishing and malware.", margin + 10, y + 22, 10, colors.gray);
+    addText("No URLs were scanned during this session.", margin + 10, y + 10, 10, colors.gray, "bold");
+    addText("Use the URL Scanner to analyze web addresses for phishing and malware.", margin + 10, y + 17, 8, colors.gray);
   }
 
-  // ==================== RECOMMENDATIONS ====================
+  //  RECOMMENDATIONS 
 
   doc.addPage();
   y = 20;
@@ -779,52 +791,57 @@ async function generatePDFReport(fileData, urlData) {
   const recommendations = generateRecommendations(fileData, urlData);
   
   recommendations.forEach((rec, i) => {
-    checkPageBreak(25);
-    
-    doc.setFillColor(...colors.panel);
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 20, 2, 2, "F");
-    
-    addText(`${i + 1}. ${rec.title}`, margin + 5, y + 6, 10, colors.primary, "bold");
+    checkPageBreak(30);
     
     const descLines = doc.splitTextToSize(rec.description, pageWidth - (margin * 2) - 15);
-    doc.setTextColor(200, 200, 200);
-    doc.setFontSize(9);
-    doc.text(descLines, margin + 5, y + 12);
+    const recHeight = Math.max(18, descLines.length * 4 + 12);
     
-    y += 25;
+    doc.setFillColor(...colors.panel);
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), recHeight, 2, 2, "F");
+    
+    addText(`${i + 1}. ${rec.title}`, margin + 5, y + 5, 9, colors.primary, "bold");
+    
+    doc.setTextColor(200, 200, 200);
+    doc.setFontSize(8);
+    doc.text(descLines, margin + 5, y + 11);
+    
+    y += recHeight + 6;
   });
 
-  // ==================== FOOTER ====================
+  //  FOOTER 
 
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     
+    // Footer background
     doc.setFillColor(26, 26, 26);
-    doc.rect(0, pageHeight - 12, pageWidth, 12, "F");
+    doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
     
+    // Footer line
     doc.setDrawColor(...colors.primary);
     doc.setLineWidth(0.3);
-    doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+    doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
     
-    addText(`ZeroRisk Sentinel v${REPORT_VERSION} | Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 6, 8, colors.gray, "normal", "center");
+    // Footer text
+    addText(`ZeroRisk Sentinel v${REPORT_VERSION} | Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 4, 7, colors.gray, "normal", "center");
   }
 
   doc.save(`zerorisk-report-${formatTimestamp()}.pdf`);
 }
 
-// ==================== HELPER FUNCTIONS ====================
+//  HELPER FUNCTIONS 
 
 function calculateFileBoxHeight(file) {
-  let height = 35;
+  let height = 28;
   
-  if (file.hashes && file.hashes.sha256) height += 6;
-  if (file.sandbox_data) height += 6;
-  if (file.spywareProfile) height += 25;
-  if (file.findings && file.findings.length > 0) height += 20;
-  if (file.riskExposure && file.riskExposure !== "unknown") height += 10;
+  if (file.hashes && file.hashes.sha256) height += 5;
+  if (file.sandbox_data) height += 5;
+  if (file.spywareProfile) height += 20;
+  if (file.findings && file.findings.length > 0) height += 16;
+  if (file.riskExposure && file.riskExposure !== "unknown") height += 8;
   
-  return Math.min(height, 110);
+  return Math.min(height, 95);
 }
 
 function generateRiskAssessmentText(fileData, urlData) {
@@ -855,7 +872,7 @@ function generateRiskAssessmentText(fileData, urlData) {
   }
   
   if (urlData.length > 0) {
-    if (text) text += "\n\n";
+    if (text) text += " ";
     text += `URL Analysis: ${urlData.length} URL(s) scanned. `;
     
     if (urlStats.deepScan > 0) {
@@ -991,47 +1008,42 @@ function generateReportId() {
   return "ZRS-" + Math.random().toString(36).substring(2, 10).toUpperCase();
 }
 
-// ==================== NOTIFICATION ====================
+//  NOTIFICATION 
 
 function showNotification(message, type = "info") {
   const existing = document.querySelectorAll(".zerorisk-notification");
   existing.forEach(n => n.remove());
 
   const notification = document.createElement("div");
-  notification.className = `zerorisk-notification fixed top-20 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transform transition-all duration-300 translate-x-full ${
-    type === "success" ? "bg-green-600" :
-    type === "warning" ? "bg-yellow-600" :
-    type === "error" ? "bg-red-600" : "bg-blue-600"
-  } text-white`;
-
+  notification.className = "zerorisk-notification fixed top-20 right-4 z-50 px-6 py-4 rounded-lg shadow-2xl font-medium text-sm transition-all duration-300";
+  
+  const colors = {
+    success: "bg-green-500/90 text-white border border-green-400",
+    error: "bg-red-500/90 text-white border border-red-400",
+    warning: "bg-yellow-500/90 text-black border border-yellow-400",
+    info: "bg-blue-500/90 text-white border border-blue-400"
+  };
+  
+  notification.className += " " + (colors[type] || colors.info);
   notification.innerHTML = `
-    <div class="flex items-center space-x-3">
-      <div class="flex-shrink-0">
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
-        </svg>
-      </div>
-      <div class="flex-1">
-        <p class="text-sm font-medium">${message}</p>
-      </div>
-      <div class="flex-shrink-0">
-        <button onclick="this.parentElement.parentElement.parentElement.remove()" class="text-white hover:text-gray-200">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-          </svg>
-        </button>
-      </div>
+    <div class="flex items-center gap-3">
+      <span>${type === "success" ? "✓" : type === "error" ? "✗" : type === "warning" ? "⚠" : "ℹ"}</span>
+      <span>${message}</span>
     </div>
   `;
-
+  
   document.body.appendChild(notification);
-
+  
+  // Animate in
+  requestAnimationFrame(() => {
+    notification.style.transform = "translateX(0)";
+    notification.style.opacity = "1";
+  });
+  
+  // Remove after delay
   setTimeout(() => {
-    notification.classList.remove("translate-x-full");
-  }, 100);
-
-  setTimeout(() => {
-    notification.classList.add("translate-x-full");
+    notification.style.transform = "translateX(100%)";
+    notification.style.opacity = "0";
     setTimeout(() => notification.remove(), 300);
-  }, 5000);
+  }, 4000);
 }

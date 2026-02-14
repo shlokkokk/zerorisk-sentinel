@@ -281,3 +281,35 @@ document.addEventListener("DOMContentLoaded", function() {
         btn.addEventListener("click", analyzeURL);
     }
 });
+
+// Info Modal Functions
+const modalInfo = {
+  deepScan: {
+    title: "Deep Scan Mode",
+    content: "Deep Scan performs comprehensive sandboxed analysis by visiting the URL in an isolated environment. This captures real-time page behavior, network activity, and potential threats. Takes 15-30 seconds but provides maximum security assurance."
+  }
+};
+
+function showInfoModal(key) {
+  const modal = document.getElementById('infoModal');
+  const title = document.getElementById('modalTitle');
+  const content = document.getElementById('modalContent');
+  title.textContent = modalInfo[key].title;
+  content.textContent = modalInfo[key].content;
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeInfoModal() {
+  const modal = document.getElementById('infoModal');
+  modal.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'infoModal') closeInfoModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeInfoModal();
+});

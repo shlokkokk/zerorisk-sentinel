@@ -1,6 +1,6 @@
 # ZeroRisk Sentinel - Frontend
 
-The web interface for ZeroRisk Sentinel, a hybrid cybersecurity analysis platform. Built with vanilla JavaScript and a cyberpunk aesthetic, this frontend provides file scanning, URL analysis with optional Deep Scan sandboxing, and comprehensive security reporting.
+The web interface for ZeroRisk Sentinel, a hybrid cybersecurity analysis platform. Built with vanilla JavaScript and a cyberpunk aesthetic, this frontend provides file scanning, URL analysis with optional Deep Scan sandboxing, comprehensive security reporting, and an intuitive info modal system.
 
 **Created by Shlok Shah**
 
@@ -20,9 +20,10 @@ This is the client-side application for ZeroRisk Sentinel. It performs initial s
 ├── results.html        # Detailed analysis results & reporting
 ├── about.html          # Documentation & methodology
 ├── main.js             # Core file analysis engine
-├── url-analyzer.js     # URL scanning logic with urlscan.io integration
+├── url-analyzer.js     # URL scanning logic with sandbox integration
 └── generateReport.js   # PDF/JSON report generation
 ```
+
 | 🔗 Backend Service | |
 |:---|:---|
 | Repository | [`zerorisk-sentinel-backend`](https://github.com/shlokkokk/zerorisk-sentinel-backend) |
@@ -34,10 +35,26 @@ This is the client-side application for ZeroRisk Sentinel. It performs initial s
 
 | Page | Purpose |
 |------|---------|
-| **index.html** | File drop zone with drag-and-drop support, scan mode toggle (Live/Demo), Quick/Deep scan option |
-| **url.html** | URL input with demo samples (Safe/Medium/High/Critical categories), Deep Scan toggle for urlscan.io sandbox, backend connectivity check |
+| **index.html** | File drop zone with drag-and-drop support, scan mode toggle (Live/Demo), Quick/Deep scan option, info modal for Deep Scan explanation |
+| **url.html** | URL input with demo samples (Safe/Medium/High/Critical categories), Deep Scan toggle for browser sandbox, backend connectivity check, info modal |
 | **results.html** | ECharts visualizations, dynamic result rendering, report export modal, URL Deep Scan results with screenshots |
 | **about.html** | Full methodology documentation, tech stack info, architecture explanation |
+
+---
+
+## Latest Features
+
+### Info Modal System
+- **Professional modal design** with backdrop blur and smooth animations
+- **Click outside to close** or press Escape
+- **Background scroll lock** when modal is open
+- **Context-aware explanations** for Deep Scan mode
+- **SVG info icon** for better visibility
+
+### Enhanced UI Elements
+- **Improved Analyze button** with larger hitbox, click feedback (color change + scale effect)
+- **Professional styling** throughout the interface
+- **Consistent design language** across all pages
 
 ---
 
@@ -64,7 +81,7 @@ POST /api/analyze-url
 Content-Type: application/json
 { "url": "https://example.com" }
 
-// URL Deep Scan (urlscan.io) - Submit
+// URL Deep Scan (Browser Sandbox) - Submit
 POST /api/urlscan/submit
 Content-Type: application/json
 { "url": "https://example.com" }
@@ -114,6 +131,7 @@ const fileData = JSON.parse(sessionStorage.getItem("analysisResults") || "[]");
 - **Matrix background**: Canvas-based falling characters animation
 - **Custom cursor**: SVG crosshair that changes color on click
 - **Glassmorphism cards**: Backdrop blur with gradient borders
+- **Info modals**: Professional modal system with SVG icons
 
 ### Interactive Elements
 
@@ -124,6 +142,8 @@ const fileData = JSON.parse(sessionStorage.getItem("analysisResults") || "[]");
 | **Charts** | ECharts for threat distribution (orbit visualization) and security score gauge |
 | **Terminal Output** | Simulated console with color-coded log levels |
 | **Page Transitions** | CSS transforms with directional exit animations |
+| **Info Modals** | Custom modal with backdrop click, Escape key, scroll lock |
+| **Analyze Button** | Enhanced hitbox with active state feedback |
 
 ### Scan Modes
 
@@ -142,11 +162,11 @@ while (offset < file.size) {
 }
 ```
 
-### URL Deep Scan (urlscan.io)
+### URL Deep Scan (Browser Sandbox)
 
 When the Deep Scan toggle is enabled for URLs:
 1. URL is submitted to backend's `/api/urlscan/submit`
-2. Backend forwards to urlscan.io API
+2. Backend forwards to browser sandbox API
 3. Frontend polls `/api/urlscan/result/<scan_id>` every 2 seconds
 4. Results include: screenshot, network stats, brand detection, malicious verdicts
 
@@ -175,11 +195,12 @@ When the Deep Scan toggle is enabled for URLs:
 - **Keylogger detection**: Pattern matching for surveillance APIs
 - **Spyware profile**: Surveillance, exfiltration, persistence, stealth scoring
 - **Backend-enhanced scanning**: YARA rules, VirusTotal, entropy analysis when backend available
+- **Info modal**: Professional explanation of Deep Scan mode
 
 ### URL Analysis (`url-analyzer.js`)
 
 - **Backend-first** with 25-second timeout
-- **Deep Scan option**: Live browser sandbox via urlscan.io (20-40s analysis)
+- **Deep Scan option**: Live browser sandbox (20-40s analysis)
 - **Local fallback heuristics**:
   - IP-based URL detection
   - URL shortener detection (bit.ly, tinyurl, etc.)
@@ -187,6 +208,7 @@ When the Deep Scan toggle is enabled for URLs:
   - Risky TLD detection (.xyz, .tk, .ml)
   - HTTPS verification
 - **Demo URL categories**: Safe, Medium Risk, High Risk, Critical
+- **Info modal**: Professional explanation of Deep Scan mode
 
 ### Report Generation (`generateReport.js`)
 
@@ -259,6 +281,31 @@ User enters URL + enables Deep Scan
 └─────────────────┘
 ```
 
+### Info Modal Flow
+
+```
+User clicks info icon
+        │
+        ▼
+┌─────────────────┐
+│ Show modal      │
+│ Lock scroll     │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+┌───────┐ ┌─────────┐
+│Click  │ │ Escape  │
+│outside│ │ key     │
+└───┬───┘ └────┬────┘
+    └────┬─────┘
+         ▼
+┌─────────────────┐
+│ Hide modal      │
+│ Unlock scroll   │
+└─────────────────┘
+```
+
 ### Security Considerations
 
 - Files are analyzed locally first before any backend upload
@@ -270,11 +317,11 @@ User enters URL + enables Deep Scan
 
 ## Limitations
 
-- **Static analysis only**: No runtime execution or sandboxing (except urlscan.io for URLs)
+- **Static analysis only**: No runtime execution or sandboxing (except browser sandbox for URLs)
 - **Browser constraints**: Cannot access system APIs or perform deep OS integration
 - **File size limits**: Large files may cause performance issues in browser
 - **Heuristic-based**: Results indicate risk, not definitive proof of maliciousness
-- **URLScan rate limits**: Free tier limited to few scans/day
+- **Sandbox rate limits**: Free tier limited to few scans/day
 
 ---
 
